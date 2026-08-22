@@ -267,6 +267,20 @@ export function applyPlayerMode(mode: PlayerMode): void {
       x: workArea.x + workArea.width - COMPACT_SIZE.width - 24,
       y: workArea.y + workArea.height - COMPACT_SIZE.height - 24
     })
+    // Topmost is not the same as raised. The flag was set above, but setting it
+    // does not pull the window over whatever currently owns the foreground, so
+    // the card arrived in the floating band and still behind the app you
+    // switched from - it took a taskbar click to bring it forward, which is not
+    // how a mini player is supposed to behave.
+    //
+    // Cycling the flag is what makes the raise actually take effect (the same
+    // no-op rule reassertTopmost exists for), and show()/focus() hand it the
+    // foreground. show() also covers the case where the window was minimised.
+    win.setAlwaysOnTop(false)
+    win.setAlwaysOnTop(true, 'floating')
+    win.show()
+    win.moveTop()
+    win.focus()
   } else {
     win.setSize(FULL_SIZE.width, FULL_SIZE.height)
     win.center()
