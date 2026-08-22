@@ -1,5 +1,5 @@
 import { nativeImage } from 'electron'
-import { artistsMatch, normalize, titlesMatch } from './match'
+import { normalize, scoreCandidate, type Candidate } from './match'
 import type { Artwork, Track } from '../shared/types'
 
 /**
@@ -89,67 +89,120 @@ async function fetchImage(url: string, source: string): Promise<Found | null> {
   }
 }
 
+// ─── Candidates ──────────────────────────────────────────────────────────────
+//
+// Providers return every plausible result; nothing is fetched until the best
+// one across ALL providers has been chosen. The old shape - each provider
+// returning its own first acceptable hit, first provider to answer wins - is
+// how a DJ-mix remix from iTunes beat the correct album from Deezer.
+
+interface Option extends Candidate {
+  /** Image URLs to try, best first. */
+  urls: string[]
+  source: string
+}
+
 // ─── iTunes ──────────────────────────────────────────────────────────────────
 
 interface ItunesResult {
-  results: { trackName: string; artistName: string; artworkUrl100?: string }[]
+  results: { trackName: string; artistName: string; collectionName?: string; artworkUrl100?: string }[]
 }
 
-async function fromItunes(track: Track): Promise<Found | null> {
+async function fromItunes(track: Track): Promise<Option[]> {
   const term = encodeURIComponent(`${track.artist} ${track.title}`)
   const json = await getJson<ItunesResult>(
-    `https://itunes.apple.com/search?term=${term}&entity=song&media=music&limit=8`
+    `https://itunes.apple.com/search?term=${term}&entity=song&media=music&limit=10`
   )
-  if (!json?.results?.length) return null
+  if (!json?.results?.length) return []
 
-  const hit = json.results.find(
-    (r) =>
-      r.artworkUrl100 && titlesMatch(r.trackName, track.title) && artistsMatch(track.artist, [r.artistName])
-  )
-  if (!hit?.artworkUrl100) return null
-
-  // The API only ever returns the 100px URL, but the path segment is just a
-  // resize instruction, so any size can be asked for. 1000 rather than the
-  // available 1400: the largest the cover is ever painted is ~880 device px
-  // (440 CSS px at 200% scaling), and 1400 roughly doubled the payload for
-  // pixels nothing can display.
-  const big = hit.artworkUrl100.replace(/\/\d+x\d+bb\./, '/1000x1000bb.')
-  return (await fetchImage(big, 'iTunes')) ?? (await fetchImage(hit.artworkUrl100, 'iTunes'))
+  return json.results
+    .filter((r) => r.artworkUrl100)
+    .map((r) => ({
+      title: r.trackName,
+      artist: r.artistName,
+      album: r.collectionName ?? '',
+      // The API only ever returns the 100px URL, but the path segment is just
+      // a resize instruction, so any size can be asked for. 1000 rather than
+      // the available 1400: the largest the cover is ever painted is ~880
+      // device px (440 CSS px at 200% scaling), and 1400 roughly doubled the
+      // payload for pixels nothing can display.
+      urls: [r.artworkUrl100!.replace(/\/\d+x\d+bb\./, '/1000x1000bb.'), r.artworkUrl100!],
+      source: 'iTunes'
+    }))
 }
 
 // ─── Deezer ──────────────────────────────────────────────────────────────────
 
 interface DeezerResult {
-  data: { title: string; artist?: { name: string }; album?: { cover_xl?: string; cover_big?: string } }[]
+  data: {
+    title: string
+    artist?: { name: string }
+    album?: { title?: string; cover_xl?: string; cover_big?: string }
+  }[]
 }
 
-async function fromDeezer(track: Track): Promise<Found | null> {
+async function fromDeezer(track: Track): Promise<Option[]> {
   // Free text, not Deezer's `artist:"..." track:"..."` field syntax. The field
   // form demands an exact artist match, and the media session reports the whole
   // credit list ("Daft Punk, Julian Casablancas") where Deezer indexes only the
   // primary artist - so the strict query returned zero results for essentially
-  // everything, making this fallback dead code. Filtering the loose results
-  // through the shared matcher is both more forgiving and just as safe.
+  // everything. Filtering loose results through the shared scorer is both more
+  // forgiving and just as safe.
   const q = encodeURIComponent(`${track.artist} ${track.title}`)
-  const json = await getJson<DeezerResult>(`https://api.deezer.com/search?q=${q}&limit=8`)
-  if (!json?.data?.length) return null
+  const json = await getJson<DeezerResult>(`https://api.deezer.com/search?q=${q}&limit=10`)
+  if (!json?.data?.length) return []
 
-  const hit = json.data.find(
-    (d) =>
-      (d.album?.cover_xl || d.album?.cover_big) &&
-      titlesMatch(d.title, track.title) &&
-      artistsMatch(track.artist, [d.artist?.name ?? ''])
-  )
-  const url = hit?.album?.cover_xl ?? hit?.album?.cover_big
-  return url ? fetchImage(url, 'Deezer') : null
+  return json.data
+    .filter((d) => d.album?.cover_xl || d.album?.cover_big)
+    .map((d) => ({
+      title: d.title,
+      artist: d.artist?.name ?? '',
+      album: d.album?.title ?? '',
+      urls: [d.album!.cover_xl, d.album!.cover_big].filter((u): u is string => !!u),
+      source: 'Deezer'
+    }))
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+/**
+ * Best-scoring candidate across both providers, or nothing. When the session
+ * names an album and no candidate agrees with it, the answer is nothing: a
+ * correct small thumbnail beats a wrong large cover, and a same-titled result
+ * on another release is far more often a remix or a compilation than the
+ * album that is actually playing.
+ */
+export function chooseBest<T extends Candidate>(track: Candidate, options: T[]): T | null {
+  const scored = options
+    .map((o) => ({ option: o, score: scoreCandidate(track, o) }))
+    .filter((s): s is { option: T; score: number } => s.score !== null)
+    .sort((a, b) => b.score - a.score)
+  const best = scored[0]
+  if (!best) return null
+  if (track.album && best.score < 100) return null
+  return best.option
+}
+
 async function lookup(track: Track): Promise<Found | null> {
-  for (const provider of [fromItunes, fromDeezer]) {
-    const found = await provider(track)
-    if (found) return found
+  const [itunes, deezer] = await Promise.all([fromItunes(track), fromDeezer(track)])
+  // Stable order matters for ties: iTunes first because it serves the larger image.
+  const ranked = [...itunes, ...deezer]
+    .map((o) => ({ o, s: scoreCandidate(track, o) }))
+    .filter((x): x is { o: Option; s: number } => x.s !== null)
+    .sort((a, b) => b.s - a.s)
+
+  const best = chooseBest(track, ranked.map((r) => r.o))
+  if (!best) return null
+
+  // Try the winner's sizes, then any other candidate with the same score (a
+  // different provider's copy of the same release) before giving up.
+  const bestScore = scoreCandidate(track, best)
+  const sameRelease = ranked.filter((r) => r.s === bestScore).map((r) => r.o)
+  for (const option of sameRelease) {
+    for (const url of option.urls) {
+      const found = await fetchImage(url, option.source)
+      if (found) return found
+    }
   }
   return null
 }
