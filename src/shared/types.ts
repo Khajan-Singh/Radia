@@ -208,6 +208,8 @@ export const CH = {
   toggleRim: 'radia:toggleRim',
   setPlayerMode: 'radia:setPlayerMode',
   windowAction: 'radia:windowAction',
+  /** Renderer -> main: resize the sender's window so its content fits exactly. */
+  fitWindow: 'radia:fitWindow',
   // renderer -> main (send): the player has painted the named mode and the
   // window can be revealed without showing a half-built layout.
   playerModeReady: 'radia:playerModeReady'

@@ -49,6 +49,34 @@ export default function App(): JSX.Element {
     })
   }, [])
 
+  // Size the window to the content rather than the content to the window:
+  // the panel is a fixed list with one optional block (the wheels), and a
+  // preset height is either clipping it or leaving dead surface below it.
+  useEffect(() => {
+    const panel = document.querySelector<HTMLElement>('.panel')
+    const body = document.querySelector<HTMLElement>('.panel-body')
+    const bar = document.querySelector<HTMLElement>('.titlebar')
+    if (!panel || !body || !bar) return
+    const fit = (): void => {
+      const border = panel.offsetHeight - panel.clientHeight
+      void api.fitWindow(bar.offsetHeight + body.scrollHeight + border)
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    for (const el of Array.from(body.children)) ro.observe(el)
+    // Children come and go (wheels, balance slider); watch the list too.
+    const mo = new MutationObserver(() => {
+      ro.disconnect()
+      for (const el of Array.from(body.children)) ro.observe(el)
+      fit()
+    })
+    mo.observe(body, { childList: true })
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [])
+
   const patch = (next: Partial<Settings>): void => {
     setDraft((current) => ({ ...current, ...next }))
     void api.patchSettings(next)
@@ -191,9 +219,21 @@ export default function App(): JSX.Element {
         </div>
 
         <div className={`status ${state.bridge.running ? 'ok' : 'warn'}`}>
-          {state.bridge.running
-            ? `Helper running - media ${state.bridge.media ? 'ok' : 'waiting'}, audio ${state.bridge.audio ? 'ok' : 'waiting'}`
-            : state.bridge.lastError ?? 'Helper not running'}
+          {state.bridge.running ? (
+            <CheckIcon className="status-icon" />
+          ) : (
+            <CloseIcon className="status-icon" />
+          )}
+          {state.bridge.running ? (
+            <>
+              <span>Helper running</span>
+              <span className="status-detail">
+                Media {state.bridge.media ? 'ok' : 'waiting'} · Audio {state.bridge.audio ? 'ok' : 'waiting'}
+              </span>
+            </>
+          ) : (
+            <span>{state.bridge.lastError ?? 'Helper not running'}</span>
+          )}
         </div>
       </div>
     </div>

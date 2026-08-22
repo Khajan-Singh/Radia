@@ -414,10 +414,13 @@ export function createAppearance(section?: PanelSection): BrowserWindow {
 
   appearance = new BrowserWindow({
     width: 400,
-    height: 820,
+    // Sized to the content at rest (no override wheels). The old 820px left a
+    // third of the card as empty surface under the status line.
+    height: 690,
     minWidth: 400,
     maxWidth: 520,
-    minHeight: 560,
+    minHeight: 520,
+    useContentSize: true,
     frame: false,
     // Stays transparent, unlike the player: `.panel` draws its own rounded
     // outline and needs the corners cut. There is no acrylic to gain here.

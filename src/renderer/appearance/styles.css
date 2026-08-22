@@ -51,13 +51,18 @@ button {
   border-bottom: 1px solid var(--hairline);
 }
 
+/* Same box as the selects - a 9px rectangle - so the heading row reads as
+   one family with the dropdowns beneath it. Sits on the far side of the
+   title, where every other row keeps its control. */
 .pill {
   flex: none;
-  padding: 4px 12px;
-  border-radius: var(--r-pill);
-  font-size: var(--t-xs);
-  font-weight: 600;
+  margin-left: auto;
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 550;
   color: var(--muted);
+  background: #232326;
   border: 1px solid var(--hairline);
   pointer-events: none;
 }
@@ -74,7 +79,7 @@ button {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 18px 22px 28px;
+  padding: 18px 22px 22px;
 }
 
 .panel-body::-webkit-scrollbar {
@@ -93,6 +98,7 @@ button {
   align-items: center;
   gap: var(--s-3);
   margin-bottom: 6px;
+  padding-bottom: 12px;
 }
 
 .panel-title {
@@ -394,19 +400,30 @@ button {
 }
 
 .status {
-  margin-top: var(--s-3);
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 11px;
-  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
-.status.ok {
-  color: #4ec97a;
-  background: rgb(78 201 122 / 0.1);
+.status-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ok);
 }
 
-.status.warn {
-  color: #ffb54d;
-  background: rgb(255 181 77 / 0.1);
+.status.warn .status-icon {
+  color: var(--warn);
+}
+
+.status-detail {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

@@ -24,7 +24,7 @@ const SIZES = {
   window: { width: 1180, height: 820 },
   fullscreen: { width: 1440, height: 900 },
   compact: { width: 420, height: 96 },
-  appearance: { width: 400, height: 820 }
+  appearance: { width: 400, height: 690 }
 }
 const size = SIZES[mode] ?? SIZES.window
 
@@ -119,6 +119,7 @@ require('electron').contextBridge.exposeInMainWorld('radia', {
   toggleRim: () => Promise.resolve(),
   setPlayerMode: () => Promise.resolve(),
   windowAction: () => Promise.resolve(),
+  fitWindow: () => Promise.resolve(),
   playerModeReady: () => undefined,
   spotifyConnect: () => Promise.resolve(state.spotify),
   spotifyDisconnect: () => Promise.resolve(state.spotify),

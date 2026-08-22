@@ -376,6 +376,20 @@ function registerIpc(): void {
     else win.close()
   })
 
+  // The appearance panel has no fixed height: it asks to be exactly as tall as
+  // its content (the colour wheels add a block, and nothing below the status
+  // line should be empty surface). Capped to the work area of the display the
+  // window is on, after which the body scrolls.
+  ipcMain.handle(CH.fitWindow, (event, height: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed() || win.isMaximized()) return
+    const work = screen.getDisplayMatching(win.getBounds()).workArea
+    const [w] = win.getContentSize()
+    const h = Math.min(Math.round(height), work.height - 24)
+    if (h === win.getContentSize()[1]) return
+    win.setContentSize(w, h)
+  })
+
 }
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
