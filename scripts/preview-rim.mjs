@@ -2,9 +2,17 @@
  * Renders the real rim shader offscreen and writes a PNG, so the look can be
  * tuned without an overlay on the actual desktop.
  *
- *   npx electron scripts/preview-rim.mjs out.png [thickness] [glow] [colors]
+ *   npx electron scripts/preview-rim.mjs out.png [thickness] [glow] [colors] [warp] [time]
  *
  * thickness/glow are 0-1 as stored in settings; colors is 1, 2 or 3.
+ *
+ * warp/time default to 0, which is what the static rim uses. They have to be
+ * drivable because the aurora warp is a music-mode-only branch of the shader,
+ * and with both pinned at 0 this tool could not render that branch at all -
+ * which is how a tear in it survived. `time` is uTime in seconds; the warp
+ * pattern scrolls with it, so a seam shows up as a corner that differs between
+ * two renders a fraction of a second apart. Music mode drives warp between
+ * 0.03 and 0.08.
  */
 import { app, BrowserWindow } from 'electron'
 import { writeFileSync, readFileSync } from 'node:fs'
@@ -18,6 +26,8 @@ const out = resolve(args[0] ?? join(root, 'rim-preview.png'))
 const thickness = Number(args[1] ?? 0.32)
 const glow = Number(args[2] ?? 0.85)
 const count = Number(args[3] ?? 2)
+const warp = Number(args[4] ?? 0)
+const time = Number(args[5] ?? 0)
 
 const WIDTH = 900
 const HEIGHT = 560
@@ -67,7 +77,7 @@ const colors = [0.92,0.16,0.38, 0.13,0.78,0.52, 0.30,0.42,0.95];
 const centers = [0.17, 0.5, 0.83];
 
 gl.uniform2f(loc('uRes'), ${WIDTH}, ${HEIGHT});
-gl.uniform1f(loc('uTime'), 0.0);
+gl.uniform1f(loc('uTime'), ${time});
 gl.uniform3fv(loc('uColors'), new Float32Array(colors));
 gl.uniform1fv(loc('uCenters'), new Float32Array(centers));
 gl.uniform1i(loc('uCount'), ${count});
@@ -77,7 +87,7 @@ gl.uniform1f(loc('uGlowStrength'), ${0.28 + glow * 0.34});
 gl.uniform1f(loc('uCorner'), Math.min(${WIDTH}, ${HEIGHT}) * 0.05);
 gl.uniform1f(loc('uOffset'), 0.0);
 gl.uniform1f(loc('uIntensity'), 1.0);
-gl.uniform1f(loc('uWarp'), 0.0);
+gl.uniform1f(loc('uWarp'), ${warp});
 gl.uniform2fv(loc('uPulses'), new Float32Array(16));
 gl.uniform1f(loc('uPulseWidth'), 0.05);
 
