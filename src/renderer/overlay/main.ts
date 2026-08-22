@@ -185,9 +185,15 @@ function envelope(current: number, input: number, attack: number, release: numbe
 }
 
 function spawnPulse(now: number, strength: number): void {
-  // Enter at the current gradient offset so pulses appear to leave the "front"
-  // of the animation rather than a fixed screen corner.
-  pulses.push({ position: flowPhase % 1, born: now, strength })
+  // Pulses live in gradient space, not screen space: the shader compares them
+  // against `t`, which already has uOffset folded in. Storing the offset here
+  // too cancelled it out - fract(along + uOffset) == uOffset solves to
+  // along == 0 - so every pulse was in fact born at the top-left corner, the one
+  // point where the perimeter coordinate wraps, which is the opposite of what
+  // this comment used to claim. Spawning at the gradient origin instead lets the
+  // entry point ride around the rim with the gradient, which is what leaving the
+  // "front" of the animation was always meant to mean.
+  pulses.push({ position: 0, born: now, strength })
   if (pulses.length > MAX_PULSES) pulses.shift()
 }
 
