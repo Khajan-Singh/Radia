@@ -298,36 +298,6 @@ button {
   height: 27px;
 }
 
-/* The mini player controls stay flat on purpose. They already sit inside a
-   glass card; giving each its own pane at 2px spacing reads as noise. */
-.icon-button.sm {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: none;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.icon-button.sm::before {
-  display: none;
-}
-
-.icon-button.sm:hover:not(:disabled) {
-  background: var(--fill-hover);
-  transform: none;
-}
-
-.icon-button.sm svg {
-  width: 17px;
-  height: 17px;
-}
-
-.icon-button.sm.primary {
-  background: color-mix(in oklab, var(--primary) 30%, transparent);
-}
-
 /* ─── Toolbar ───────────────────────────────────────────────────────────── */
 
 .toolbar {
@@ -406,7 +376,7 @@ button {
   text-align: center;
 }
 
-/* ─── Compact card ──────────────────────────────────────────────────────── */
+/* ─── Compact card ─────────────────────────────────────────── */
 
 /*
  * Real glass, finally.
@@ -424,41 +394,79 @@ button {
 .app.compact {
   flex-direction: row;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3) 14px;
-  border-radius: var(--r-md);
+  gap: 14px;
+  /* Ends only. Centring supplies the top and bottom breathing room, so the
+     window height alone decides how tall the card breathes - no padding to
+     keep in sync with it. */
+  padding: 0 14px;
+  /* Flush with the ~8px corner DWM rounds the frameless window at. Anything
+     larger leaves a crescent of bare backdrop in all four corners, which is
+     the one place this card would show a hard edge against the desktop. */
+  border-radius: 8px;
   /* 0.52, not lower: on a machine without acrylic (pre-Windows 11 22H2) there
      is no frost and this fill is all that separates the card from a sharp
      desktop. CSS cannot feature-detect a DWM backdrop, so the value has to be
      one that survives both cases rather than a fallback that never fires. */
   background: rgb(14 14 16 / 0.52);
-  border: 1px solid var(--glass-edge-top);
+  /* A hairline, not `--glass-edge-top`: at this size a 0.22 white ring drawn
+     on all four sides is the brightest thing on the card. The lit edge is the
+     inset highlight below, which only touches the top. */
+  border: 1px solid var(--hairline);
   box-shadow:
     inset 0 1px 0 var(--glass-edge-top),
     0 18px 44px rgb(0 0 0 / 0.5);
 }
 
-/* The specular sheen, matching the buttons. `.app > *` already gives every
-   child `position: relative`, so paint order alone keeps this behind them. */
+/*
+ * Two washes, each anchored to something the rest of the app already does: the
+ * specular sheen every glass surface here carries, and a bloom of the album's
+ * own colour rising from behind the cover - the mini-player's share of the
+ * halo the full window throws around its artwork. Without the second one this
+ * is the only surface in the app that ignores the palette.
+ *
+ * The sheen stops at a fixed 28px rather than a percentage of the card. As a
+ * percentage it covered nearly half of a short card, which does not read as a
+ * highlight along an edge - it reads as a lighter panel with a seam under it.
+ *
+ * `.app > *` already gives every child `position: relative`, so paint order
+ * alone keeps this behind them.
+ */
 .app.compact::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 40%);
+  background:
+    linear-gradient(180deg, var(--glass-sheen) 0%, transparent 28px),
+    radial-gradient(
+      120% 180% at 6% 50%,
+      color-mix(in oklab, var(--primary) 15%, transparent),
+      transparent 60%
+    );
 }
-
 
 .compact-art {
   --pulse: 0;
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   flex: none;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 calc(10px + var(--pulse) * 22px) color-mix(in oklab, var(--primary) 70%, transparent);
+  /*
+   * The bloom is offset downward and pulled in by a negative spread so it stays
+   * inside the card. Centred and unspread it reached the card's own edge, and
+   * what leaked past the rounded corner read as a coloured haze rather than
+   * light coming off the cover.
+   *
+   * The inset hairline is what stops a dark cover from dissolving into a dark
+   * card; `overflow: hidden` clips the image, not this, so it survives.
+   */
+  box-shadow:
+    0 4px calc(12px + var(--pulse) * 20px) -6px
+      color-mix(in oklab, var(--primary) 75%, transparent),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 .compact-art img,
@@ -474,15 +482,17 @@ button {
 }
 
 .compact-title {
-  font-size: 13px;
+  font-size: var(--t-sm);
   font-weight: 600;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .compact-artist {
-  font-size: 11px;
+  margin-top: 1px;
+  font-size: var(--t-xs);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -491,9 +501,10 @@ button {
 
 .compact-bar {
   height: 3px;
-  margin-top: 7px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.14);
+  margin-top: 9px;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.1);
+  overflow: hidden;
 }
 
 .compact-bar-fill {
@@ -505,8 +516,79 @@ button {
 .compact-controls {
   display: flex;
   align-items: center;
-  gap: 2px;
+  /* 6px, not 2: these carry a resting fill now, and at 2px four of them touch
+     into one lozenge. */
+  gap: 6px;
   flex: none;
+}
+
+/* Expand changes the window's mode rather than the playback, so it sits a beat
+   away from the transport trio. Spacing says that without another hairline. */
+.compact-controls .expand {
+  margin-left: 6px;
+}
+
+/*
+ * The mini player's controls are the app's glass, scaled down.
+ *
+ * They used to be entirely flat, with a bare `--fill-hover` wash on hover: a
+ * lighter box materialising under the pointer out of nothing, in a token family
+ * nothing else on this card uses. A faint resting fill makes hover a change in
+ * brightness instead of an appearance, which is the whole difference.
+ *
+ * What stays dropped from the full-size recipe is the outer shadow - four
+ * shadowed discs in a row is the clutter that got these flattened in the first
+ * place - and the backdrop blur, which here would sample the card's own
+ * semi-transparent fill and the bare window behind it, not the DWM frost.
+ */
+.icon-button.sm {
+  width: 30px;
+  height: 30px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 0.05);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18);
+  transition:
+    background var(--m-fast) ease,
+    color var(--m-fast) ease;
+}
+
+.icon-button.sm::before {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, transparent 60%);
+}
+
+.icon-button.sm:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--glass-fill);
+  /* No lift: a 1px hop inside a 96px card reads as a twitch. */
+  transform: none;
+}
+
+.icon-button.sm svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button.sm.primary {
+  width: 34px;
+  height: 34px;
+  color: var(--text);
+  /* The same recipe as the full player's primary control: the album tint mixed
+     INTO the glass fill rather than painted over it, so the surface still reads
+     as the same material as its neighbours. */
+  background: color-mix(in oklab, var(--primary) 32%, var(--glass-fill));
+}
+
+.icon-button.sm.primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--primary) 44%, var(--glass-fill));
+}
+
+.icon-button.sm.primary svg {
+  width: 17px;
+  height: 17px;
 }
 
 /* ─── Full screen ───────────────────────────────────────────────────────────
