@@ -683,42 +683,43 @@ button {
 }
 
 /*
- * Capped at 440px on purpose: 440 CSS px is ~880 device px at 200% scaling,
- * which is about all the 1000px source can fill without upscaling. Full screen
- * earns its presence from type and spacing below, not from a bigger cover.
+ * Deliberately modest: full screen is a display piece, not a magnified
+ * window, so the cover sits well inside the 1000px source (no upscaling
+ * even at 200% scaling) and the type and controls stay close to the
+ * windowed sizes, with the black field doing the work.
  */
 .app.fullscreen .art-frame {
-  width: min(440px, 42vh);
-  margin-bottom: var(--s-7);
+  width: min(340px, 34vh);
+  margin-bottom: var(--s-6);
 }
 
 .app.fullscreen .art-bezel {
-  padding: 13px;
+  padding: 10px;
 }
 
 .app.fullscreen .title {
-  font-size: clamp(36px, 3.6vw, 52px);
-  max-width: 20ch;
+  font-size: clamp(28px, 2.7vw, 38px);
+  max-width: 22ch;
 }
 
 .app.fullscreen .artist {
-  font-size: clamp(17px, 1.6vw, 24px);
-  margin-top: var(--s-3);
+  font-size: clamp(15px, 1.25vw, 18px);
+  margin-top: var(--s-2);
 }
 
 .app.fullscreen .progress {
-  width: min(680px, 62vw);
-  margin-top: var(--s-7);
+  width: min(520px, 48vw);
+  margin-top: var(--s-6);
 }
 
 .app.fullscreen .transport {
   gap: var(--s-5);
-  margin-top: var(--s-7);
+  margin-top: var(--s-6);
 }
 
 .app.fullscreen .icon-button {
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
 }
 
 .app.fullscreen .icon-button svg {
@@ -737,7 +738,24 @@ button {
 }
 
 .app.fullscreen .toolbar {
-  padding: 30px;
+  gap: var(--s-3);
+  padding: 28px;
+}
+
+.app.fullscreen .tool {
+  width: 52px;
+  height: 52px;
+}
+
+.app.fullscreen .tool svg {
+  width: 22px;
+  height: 22px;
+}
+
+.app.fullscreen .tool.wide {
+  width: auto;
+  padding: 0 var(--s-6);
+  font-size: 15px;
 }
 
 .exit-fullscreen {
