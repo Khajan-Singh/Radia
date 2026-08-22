@@ -1,0 +1,227 @@
+/*
+ * The one place shared visual constants live.
+ *
+ * Before this file, the player and the appearance panel each declared their own
+ * `:root` and quietly disagreed - `--bg` was #000 in one and #0c0c0e in the
+ * other, `--muted` was #86868c vs #8a8a90 - and the window-drag rules were
+ * duplicated verbatim in both, including selectors for elements that only exist
+ * in the player. Both stylesheets import this instead.
+ *
+ * `--bg` intentionally stays pure black in the player (see player/styles.css);
+ * the panel is a floating surface and sits one step lighter.
+ */
+
+:root {
+  /* ─── Color ─────────────────────────────────────────────────────────── */
+  --bg: #000;
+  --surface: #0c0c0e;
+  --surface-raised: #121214;
+  --text: #f2f2f4;
+  --muted: #8a8a90;
+  --hairline: rgb(255 255 255 / 0.09);
+
+  /* Interactive fills, in ascending prominence. */
+  --fill: rgb(255 255 255 / 0.04);
+  --fill-hover: rgb(255 255 255 / 0.09);
+  --fill-strong: rgb(255 255 255 / 0.14);
+
+  /* System accent, distinct from the album accent below. */
+  --accent: #0a84ff;
+  --accent-soft: rgb(10 132 255 / 0.14);
+  --accent-edge: rgb(10 132 255 / 0.4);
+
+  --warn: #ffb54d;
+  --ok: #4ec97a;
+  --danger: #c42b1c;
+
+  /*
+   * Album-derived accents. Set as inline style vars on the player's root
+   * element from the extracted palette; these are the fallbacks used before
+   * any artwork has arrived, and by the panel, which is never tinted.
+   */
+  --primary: #e0245e;
+  --secondary: #21c08a;
+
+  /* ─── Glass ─────────────────────────────────────────────────────────────
+   *
+   * Translucent fill over a blurred backdrop, with the bright top edge and
+   * grounding bottom shade that separate "glass" from "merely see-through".
+   *
+   * Edges are deliberately INSET shadows rather than a real border: five
+   * bordered discs in a row read as a ring of hairlines, which is why the
+   * transport buttons lost their borders in the first place.
+   *
+   * Note these are `--glass-*`, never `--fill`. `.slider` in the appearance
+   * panel declares a local `--fill: 50%` for its gradient stop, which shadows
+   * the global fill token for that subtree - a glass recipe built on
+   * `var(--fill)` would silently resolve to `background: 50%` in every slider.
+   */
+  --glass-blur: 20px;
+  --glass-sat: 180%;
+  --glass-fill: rgb(255 255 255 / 0.09);
+  --glass-fill-hover: rgb(255 255 255 / 0.16);
+  --glass-edge-top: rgb(255 255 255 / 0.22);
+  --glass-edge-bottom: rgb(0 0 0 / 0.22);
+  --glass-sheen: rgb(255 255 255 / 0.14);
+  --glass-shadow: 0 4px 14px rgb(0 0 0 / 0.32);
+
+  /* ─── Spacing ───────────────────────────────────────────────────────── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 22px;
+  --s-6: 28px;
+  --s-7: 36px;
+  --s-8: 48px;
+
+  /* ─── Radius ────────────────────────────────────────────────────────── */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* ─── Type ──────────────────────────────────────────────────────────── */
+  --font: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --t-xs: 11px;
+  --t-sm: 13px;
+  --t-md: 15px;
+  --t-lg: 17px;
+  --t-xl: 22px;
+  --t-2xl: 32px;
+
+  /* ─── Motion ────────────────────────────────────────────────────────── */
+  --m-fast: 120ms;
+  --m-base: 180ms;
+  --m-slow: 260ms;
+  --m-lazy: 900ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ─── Window dragging ───────────────────────────────────────────────────────
+ *
+ * Drag regions are an OS-level hit test on Windows, not a DOM one: the region
+ * is reported as the title bar, so it swallows clicks no matter what sits above
+ * it in the stacking order. A full-bleed `inset: 0` drag overlay therefore
+ * kills every control in the window while still looking correct in devtools.
+ *
+ * So: drag lives on the container, and every interactive descendant opts out.
+ * This is the single canonical copy - do not re-declare it per stylesheet.
+ */
+
+.titlebar,
+.app.compact {
+  -webkit-app-region: drag;
+}
+
+button,
+input,
+select,
+a,
+.window-controls,
+.compact-controls,
+.track,
+.wheel {
+  -webkit-app-region: no-drag;
+}
+
+/* ─── Window chrome ─────────────────────────────────────────────────────────
+ *
+ * Both the player and the appearance panel are frameless, so both draw their
+ * own title bar. This is the single definition of one - it lives here rather
+ * than in either stylesheet so the two windows cannot drift apart.
+ */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 8px 0 18px;
+  flex: none;
+}
+
+.wordmark {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.window-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.window-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  background: none;
+  transition:
+    background var(--m-fast) ease,
+    color var(--m-fast) ease;
+}
+
+.window-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/*
+ * Window controls earn their glass only on hover; painting them at rest put
+ * two lit pills in the corner of an otherwise empty title bar.
+ *
+ * In the panel the backdrop being sampled is the flat opaque surface behind
+ * the button rather than anything textured, so this resolves to the fill and
+ * the lit edges with no visible frost. That is the intended result, not a
+ * degraded one.
+ */
+.window-button:hover {
+  color: var(--text);
+  background: var(--glass-fill-hover);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    inset 0 -1px 0 var(--glass-edge-bottom);
+}
+
+.window-button:hover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 46%);
+}
+
+.window-button > * {
+  position: relative;
+}
+
+/* Close is the one control that gets a colour rather than glass - the red is
+   the standard Windows caption-close treatment and should read as such. */
+.window-button.close:hover {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: none;
+}
+
+.window-button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary) 80%, white);
+  outline-offset: 2px;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .window-button:hover {
+    background: rgb(255 255 255 / 0.12);
+  }
+}

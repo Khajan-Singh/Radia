@@ -1,0 +1,771 @@
+@import '../shared/tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--hairline);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.app > * {
+  position: relative;
+}
+
+/* Title bar chrome is shared with the appearance panel; see tokens.css. */
+
+/* ─── Stage ─────────────────────────────────────────────────────────────── */
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 32px;
+  min-height: 0;
+}
+
+/*
+ * Sizing note: artwork is fetched at 1000px, so the frame stays well inside
+ * that even in full screen. Growing it would put us back to upscaling - the
+ * presence in full screen comes from type and spacing instead.
+ */
+.art-frame {
+  --pulse: 0;
+  position: relative;
+  width: min(320px, 36vh);
+  aspect-ratio: 1;
+  margin-bottom: var(--s-6);
+  flex: none;
+}
+
+/*
+ * The light the cover throws into the room: one bloom centred on the artwork,
+ * decaying to pure black before it reaches the window edges. Sized in % of the
+ * art frame so it scales with the cover between window and full screen.
+ *
+ * It sits before the <img> in the DOM and both are positioned with `z-index:
+ * auto`, so paint order alone puts it behind the cover - no z-index needed, and
+ * a negative one would drop it behind the black background entirely.
+ */
+.art-halo {
+  position: absolute;
+  inset: -120%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in oklab, var(--primary) 85%, transparent) 0%,
+    color-mix(in oklab, var(--primary) 38%, transparent) 20%,
+    color-mix(in oklab, var(--secondary) 16%, transparent) 38%,
+    transparent 60%
+  );
+  /* Saturate deliberately: album art is often muted, and an unsaturated bloom
+     reads as grey haze over the black rather than as light with a colour. The
+     blur is only there to kill banding, which is stark against pure black. */
+  filter: blur(32px) saturate(1.35);
+  opacity: calc(0.34 + var(--pulse) * 0.22);
+  transform: scale(calc(0.97 + var(--pulse) * 0.06));
+  transition: background var(--m-lazy) ease;
+  will-change: transform, opacity;
+}
+
+/*
+ * The thin frame around the cover. It is its own element rather than a border
+ * on the <img> so the gap between edge and artwork stays visible - that inset
+ * is the detail that makes the cover read as mounted rather than pasted on.
+ */
+.art-bezel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  border-radius: var(--r-2xl);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.03);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
+}
+
+.art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-xl);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  /* Keyed on the artwork hash, so the swap from the Windows thumbnail to the
+     fetched 1000px cover fades in instead of popping. */
+  animation: art-in var(--m-slow) var(--ease);
+}
+
+@keyframes art-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.art-empty {
+  background: linear-gradient(135deg, #1b1b1e, #101012);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--t-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-align: center;
+  max-width: 22ch;
+  /* Two lines then clamp: long titles are common and a hard one-line ellipsis
+     truncates most of them. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.artist {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-lg);
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ─── Progress ──────────────────────────────────────────────────────────── */
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: min(460px, 100%);
+  margin-top: var(--s-5);
+}
+
+.time {
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  opacity: 0.75;
+  min-width: 34px;
+  text-align: center;
+}
+
+/* ─── Transport ─────────────────────────────────────────────────────────── */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+}
+
+/* --- Glass ----------------------------------------------------------------
+ *
+ * Translucent fill over a blurred backdrop. What is blurred here is the app's
+ * own painted content - the black field and the album halo behind it - not the
+ * desktop; that distinction is why the mini player needs DWM acrylic instead
+ * (see src/main/windows.ts).
+ *
+ * No borders: five bordered discs in a row read as a ring of hairlines, which
+ * is why these lost their borders originally. The lit edge is an inset shadow.
+ */
+.icon-button,
+.tool,
+.exit-fullscreen {
+  position: relative;
+  border: none;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    var(--glass-shadow);
+}
+
+/* The specular sheen. Without it the buttons read as merely see-through. */
+.icon-button::before,
+.tool::before,
+.exit-fullscreen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 46%);
+}
+
+/* Icons and labels sit above the sheen. */
+.icon-button > *,
+.tool > *,
+.exit-fullscreen > * {
+  position: relative;
+}
+
+.icon-button:hover:not(:disabled),
+.tool:hover,
+.exit-fullscreen:hover {
+  background: var(--glass-fill-hover);
+}
+
+/* Where the backdrop filter is unavailable the fill alone is too faint to
+   register as a control, so lean on opacity instead. */
+@supports not (backdrop-filter: blur(1px)) {
+  .icon-button,
+  .tool,
+  .exit-fullscreen {
+    background: rgb(255 255 255 / 0.12);
+  }
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: var(--text);
+  transition:
+    background var(--m-fast) ease,
+    transform var(--m-fast) ease,
+    opacity var(--m-fast) ease;
+}
+
+.icon-button svg {
+  width: 21px;
+  height: 21px;
+}
+
+.icon-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.icon-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.icon-button:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.icon-button.large {
+  width: 66px;
+  height: 66px;
+  /* Tinted from the album so the primary action reads as primary by more than
+     size alone. The tint is mixed INTO the glass fill, not painted over it, so
+     the backdrop still reads through. */
+  background: color-mix(in oklab, var(--primary) 26%, var(--glass-fill));
+}
+
+.icon-button.large:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--primary) 38%, var(--glass-fill));
+}
+
+.icon-button.large svg {
+  width: 27px;
+  height: 27px;
+}
+
+/* The mini player controls stay flat on purpose. They already sit inside a
+   glass card; giving each its own pane at 2px spacing reads as noise. */
+.icon-button.sm {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.icon-button.sm::before {
+  display: none;
+}
+
+.icon-button.sm:hover:not(:disabled) {
+  background: var(--fill-hover);
+  transform: none;
+}
+
+.icon-button.sm svg {
+  width: 17px;
+  height: 17px;
+}
+
+.icon-button.sm.primary {
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  flex: none;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  width: 42px;
+  border-radius: 50%;
+  color: var(--muted);
+  transition:
+    background var(--m-fast) ease,
+    color var(--m-fast) ease,
+    transform var(--m-fast) ease;
+}
+
+.tool svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tool:hover {
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.tool:active {
+  transform: scale(0.94);
+}
+
+.tool.wide {
+  width: auto;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-pill);
+  font-size: var(--t-sm);
+  font-weight: 550;
+  color: var(--text);
+}
+
+.tool.on {
+  color: color-mix(in oklab, var(--primary) 70%, white);
+  background: color-mix(in oklab, var(--primary) 30%, var(--glass-fill));
+}
+
+/* One visible focus treatment for everything keyboard-reachable in the player;
+   the browser default ring is invisible against pure black. */
+.icon-button:focus-visible,
+.tool:focus-visible,
+.track:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary) 80%, white);
+  outline-offset: 2px;
+}
+
+/* ─── Notice ────────────────────────────────────────────────────────────── */
+
+.notice {
+  position: absolute;
+  left: 50%;
+  bottom: 74px;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #ffd479;
+  background: rgb(255 212 121 / 0.1);
+  border: 1px solid rgb(255 212 121 / 0.25);
+  text-align: center;
+}
+
+/* ─── Compact card ──────────────────────────────────────────────────────── */
+
+/*
+ * Real glass, finally.
+ *
+ * The blur is NOT done here. This card floats over the desktop, and CSS
+ * backdrop-filter cannot reach it - Electron documents that a transparent
+ * window's CSS blur "will not affect applications behind the window". The old
+ * rule here claimed to blur the desktop and never did; it was a 72%-opaque
+ * card with the desktop showing through perfectly sharp.
+ *
+ * The frost now comes from the window's DWM acrylic backdrop, switched on for
+ * compact mode in applyPlayerMode. So this fill only has to tint that frost,
+ * which means it has to be much lighter than before or it buries it.
+ */
+.app.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 14px;
+  border-radius: var(--r-md);
+  /* 0.52, not lower: on a machine without acrylic (pre-Windows 11 22H2) there
+     is no frost and this fill is all that separates the card from a sharp
+     desktop. CSS cannot feature-detect a DWM backdrop, so the value has to be
+     one that survives both cases rather than a fallback that never fires. */
+  background: rgb(14 14 16 / 0.52);
+  border: 1px solid var(--glass-edge-top);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    0 18px 44px rgb(0 0 0 / 0.5);
+}
+
+/* The specular sheen, matching the buttons. `.app > *` already gives every
+   child `position: relative`, so paint order alone keeps this behind them. */
+.app.compact::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 40%);
+}
+
+
+.compact-art {
+  --pulse: 0;
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 calc(10px + var(--pulse) * 22px) color-mix(in oklab, var(--primary) 70%, transparent);
+}
+
+.compact-art img,
+.compact-art .art-empty {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.compact-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.compact-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-artist {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-bar {
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.compact-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+}
+
+.compact-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* ─── Full screen ───────────────────────────────────────────────────────────
+ *
+ * The point of this mode is that the track is the only thing on the display, so
+ * the window loses its frame entirely and every control fades out once the
+ * pointer goes quiet. Moving the mouse (or Esc) brings them straight back.
+ */
+
+.app.fullscreen {
+  border: none;
+  border-radius: 0;
+  background: #000;
+  cursor: default;
+}
+
+.app.fullscreen .stage {
+  gap: 6px;
+}
+
+/*
+ * Capped at 440px on purpose: 440 CSS px is ~880 device px at 200% scaling,
+ * which is about all the 1000px source can fill without upscaling. Full screen
+ * earns its presence from type and spacing below, not from a bigger cover.
+ */
+.app.fullscreen .art-frame {
+  width: min(440px, 42vh);
+  margin-bottom: var(--s-7);
+}
+
+.app.fullscreen .art-bezel {
+  padding: 13px;
+}
+
+.app.fullscreen .title {
+  font-size: clamp(36px, 3.6vw, 52px);
+  max-width: 20ch;
+}
+
+.app.fullscreen .artist {
+  font-size: clamp(17px, 1.6vw, 24px);
+  margin-top: var(--s-3);
+}
+
+.app.fullscreen .progress {
+  width: min(680px, 62vw);
+  margin-top: var(--s-7);
+}
+
+.app.fullscreen .transport {
+  gap: var(--s-5);
+  margin-top: var(--s-7);
+}
+
+.app.fullscreen .icon-button {
+  width: 56px;
+  height: 56px;
+}
+
+.app.fullscreen .icon-button svg {
+  width: 25px;
+  height: 25px;
+}
+
+.app.fullscreen .icon-button.large {
+  width: 76px;
+  height: 76px;
+}
+
+.app.fullscreen .icon-button.large svg {
+  width: 32px;
+  height: 32px;
+}
+
+.app.fullscreen .toolbar {
+  padding: 30px;
+}
+
+.exit-fullscreen {
+  position: absolute;
+  top: 22px;
+  right: 26px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--muted);
+  transition:
+    background var(--m-fast) ease,
+    color var(--m-fast) ease;
+}
+
+.exit-fullscreen svg {
+  width: 18px;
+  height: 18px;
+}
+
+.exit-fullscreen:hover {
+  color: var(--text);
+}
+
+/* Chrome fades on idle: the transport row, the dock and the exit button all go,
+   leaving the cover, the title and the progress line as the whole piece. */
+.chrome {
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+
+.app.fullscreen.idle {
+  cursor: none;
+}
+
+.app.fullscreen.idle .chrome {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app.fullscreen.idle .toolbar {
+  transform: translateY(12px);
+}
+
+.app.fullscreen.idle .exit-fullscreen {
+  transform: translateY(-10px);
+}
+
+/* ─── Settling to centre ────────────────────────────────────────────────────
+ *
+ * Fading the chrome does not reclaim its layout box, so what is left would sit
+ * high on the screen. The stage slides down by `--recenter` - measured in
+ * useRecenterOffset, since the amount depends on the real rendered heights -
+ * so the remaining content ends up centred on the display.
+ *
+ * `translate` and `scale` are used as independent properties rather than one
+ * `transform`, which is what lets the move and the shrink run on different
+ * curves at the same time. A single transform could only do one of them.
+ *
+ * The scale is a one-shot keyframe with no `forwards`, so it resolves back to
+ * its resting value on its own; leaving idle therefore just transitions the
+ * translate home with nothing to unwind and nothing to snap.
+ */
+.app.fullscreen .stage {
+  translate: 0 0;
+  scale: 1;
+  /* The scale transition only matters when the pointer moves mid-settle: the
+     keyframe is cancelled part-way through the dip, and without this the stage
+     would snap back to full size instead of easing out of it. */
+  transition:
+    translate 700ms var(--ease),
+    scale 260ms var(--ease);
+}
+
+.app.fullscreen.idle .stage {
+  translate: 0 var(--recenter, 0px);
+  animation: settle 700ms var(--ease);
+}
+
+/* Dips in slightly before opening back out - the pause is what makes the move
+   read as deliberate rather than as a slide. */
+@keyframes settle {
+  0% {
+    scale: 1;
+  }
+  42% {
+    scale: 0.965;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome {
+    transition: none;
+  }
+
+  .app.fullscreen .stage {
+    transition: none;
+  }
+
+  .app.fullscreen.idle .stage {
+    animation: none;
+  }
+}
+
+/* ─── Seek bar ──────────────────────────────────────────────────────────────
+ *
+ * The hit area is taller than the visible 4px line, otherwise grabbing it is a
+ * pixel-hunt. The line itself is drawn as a child so the padding stays
+ * invisible.
+ */
+
+.track {
+  position: relative;
+  flex: 1;
+  padding: 10px 0;
+  background: none;
+  height: auto;
+  cursor: pointer;
+  touch-action: none;   /* the drag is ours; don't let it scroll or pan */
+}
+
+.track::before {
+  content: '';
+  display: block;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.14);
+}
+
+.track-fill,
+.track-knob {
+  position: absolute;
+  top: 50%;
+}
+
+.track-fill {
+  left: 0;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transform: translateY(-50%);
+  transition: width 200ms linear;
+}
+
+.track-knob {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity var(--m-fast) ease,
+    transform var(--m-fast) ease,
+    left 200ms linear;
+}
+
+.track:hover .track-knob,
+.track:focus-visible .track-knob,
+.track.scrubbing .track-knob {
+  opacity: 1;
+}
+
+/* While dragging, the position is the pointer - animating toward it would lag
+   behind the cursor and feel broken. */
+.track.scrubbing .track-fill,
+.track.scrubbing .track-knob {
+  transition: none;
+}
+
+.track.scrubbing .track-knob {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.track.locked {
+  cursor: default;
+}
+
+.track.locked .track-knob {
+  display: none;
+}

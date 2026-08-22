@@ -1,0 +1,71 @@
+{
+  "name": "radia",
+  "version": "0.1.0",
+  "description": "Ambient rim lighting for Windows that follows your music",
+  "main": "out/main/index.js",
+  "author": "khajan09singh@gmail.com",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:bridge": "dotnet publish native/RadiaBridge/RadiaBridge.csproj -c Release -r win-x64 --self-contained true -o resources/bridge",
+    "start": "electron-vite preview",
+    "package": "npm run build && npm run build:bridge && electron-builder --win nsis",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.21.5": true
+  },
+  "build": {
+    "appId": "xyz.radia.windows",
+    "productName": "Radia",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*",
+      "resources/tray.png",
+      "resources/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bridge",
+        "to": "bridge",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icon.png",
+      "artifactName": "Radia-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "Radia"
+    }
+  }
+}
