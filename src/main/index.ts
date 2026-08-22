@@ -161,6 +161,16 @@ function handleBridgeArtwork(hash: string, dataUrl: string): void {
   applyArtwork({ hash, dataUrl, highRes: false })
 }
 
+/**
+ * The onset detector lives in the helper, so its threshold has to be pushed
+ * there: once on every helper start (it restarts with backoff after a crash and
+ * comes back with its compiled-in default) and again whenever the slider moves.
+ * Before this was wired the Beat-threshold slider did nothing at all.
+ */
+function syncBeatThreshold(): void {
+  sendBridge({ c: 'threshold', value: getSettings().audio.beatThreshold })
+}
+
 function handleAudio(frame: AudioFrame): void {
   // Audio is the hot path - only the overlay and the player need it, and only
   // when they are actually visible.
@@ -319,6 +329,7 @@ function registerIpc(): void {
       before.displayId !== next.displayId || before.taskbarSafe !== next.taskbarSafe
     if (geometryChanged) destroyOverlay()
     applySettings(next, event.sender.id)
+    if (before.audio.beatThreshold !== next.audio.beatThreshold) syncBeatThreshold()
     if (before.playerMode !== next.playerMode) applyPlayerMode(next.playerMode)
     return next
   })
@@ -389,6 +400,7 @@ if (!app.requestSingleInstanceLock()) {
     createPlayer()
 
     startBridge({
+      onHello: syncBeatThreshold,
       onTrack: handleTrack,
       onArtwork: handleBridgeArtwork,
       onAudio: handleAudio,

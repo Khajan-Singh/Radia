@@ -117,6 +117,13 @@ button {
   color: var(--muted);
 }
 
+/* Audio sliders do nothing in Static; dim and disable them rather than hide
+   them, so the layout does not jump when switching modes. */
+.audio-controls.muted {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* ─── Rows ──────────────────────────────────────────────────────────────── */
 
 .row {

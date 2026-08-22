@@ -63,7 +63,8 @@ export function useRadia(): RadiaState {
 }
 
 /**
- * Audio frames arrive at 60Hz. Putting them through React state would rerender
+ * Audio frames arrive at ~43-47Hz in bursts (one per FFT hop, sampleRate/1024).
+ * Putting them through React state would rerender
  * the whole tree every frame, so callers get a ref they can read from their own
  * animation loop instead.
  */

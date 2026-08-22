@@ -58,13 +58,12 @@ const artwork = {
 
 const state = {
   settings: {
-    version: 2,
+    version: 4,
     enabled: true,
     gradientMode: 2,
     animation: 'music',
     taskbarSafe: false,
-    thickness: 0.32,
-    glow: 0.85,
+    thickness: 0.6,
     overrideAlbumColor: false,
     primary: { h: 340, s: 0.85, v: 0.95 },
     secondary: { h: 150, s: 0.85, v: 0.95 },

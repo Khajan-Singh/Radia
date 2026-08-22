@@ -50,7 +50,7 @@ These isolate a layer so you can tell where a problem actually is:
 node scripts/probe-bridge.mjs 12       # 12s of sensor output: frame rate, onsets, BPM, track
 node scripts/probe-sessions.mjs 30     # every media-session switch and art publish, timestamped
 node scripts/probe-transport.mjs seek 30000   # send one command, report whether the session reacted
-npx electron scripts/preview-rim.mjs out.png 0.32 0.85 2   # render the real shader offscreen to a PNG
+npx electron scripts/preview-rim.mjs out.png music 0.6 2 0.3 0.8   # render the real shader offscreen: mode thickness colors phase amp [head]
 npx electron scripts/preview-player.mjs out.png window     # render a renderer offscreen to a PNG
 node scripts/make-icons.mjs            # regenerate resources/tray.png and icon.png
 ```
@@ -232,6 +232,41 @@ Three things here look wrong but are deliberate:
 
 The spill must reach zero at a finite distance. An exponential tail never does,
 and the residue tints the entire screen.
+
+**Modes** (`Settings.animation`, `uMode`): `static`, `music` (Sync) and
+`snake` (Snake). Sync is a travelling thickness wave on the rim's
+*inner* edge - the outer edge stays flush with the screen - plus a brightness
+swell on beats; Snake lights only a segment half the perimeter long
+(`SNAKE_LENGTH`) that crawls at tempo and lurches on each onset. Colour is
+always the palette gradient; nothing lifts it toward white. Beats may change
+brightness (`uIntensity`) and thickness, never hue - the old pulse path did
+`color * 1.6 + 0.25` and every beat flashed white.
+
+**Every multiplier on a wrapping coordinate must be an integer.** `wave()`
+sums sines in `along` (wraps 1 -> 0 at the top-left corner) and `uWavePhase`
+(wraps every few seconds, sooner after a beat surge). An integer multiple is
+exactly periodic across the wrap; anything else is a step. A phase rate of
+1.6 made the wave visibly snap backwards at every phase wrap, and it looked
+like beat stutter because surges bring the wrap forward - the same class of
+tear the old noise warp had at the corner.
+
+**Corner radius and halo are derived from thickness, not settings.** See
+`src/renderer/overlay/geometry.mjs`, which both `main.ts` and
+`scripts/preview-rim.mjs` import so the preview cannot drift from the app. A
+corner radius fixed at 5% of the screen put an 80px glowing arc on a 2px rim,
+which read as a blob in every corner. There is no glow setting any more.
+
+**Every phase is wrapped to `[0, 1)` each frame** rather than accumulating and
+taking `% 1` at the end, which spends float precision on the integer part and
+gets steppy hours in.
+
+**The beat threshold lives in the helper** and has to be pushed there:
+`syncBeatThreshold()` in `index.ts` runs on the helper's `hello` (it restarts
+with backoff and comes back with its default) and when the slider moves.
+
+Audio frames arrive at ~43-47Hz in bursts, one per FFT hop, not 60Hz. The
+overlay latches the newest frame and counts onsets separately (`pendingOnsets`)
+so a beat on a frame that lands between two rAFs is not lost.
 
 Renderer errors are forwarded to the main-process console (`forwardErrors` in
 `windows.ts`) — without that, a shader that fails to compile just looks like the
