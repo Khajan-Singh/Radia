@@ -50,6 +50,7 @@ These isolate a layer so you can tell where a problem actually is:
 node scripts/probe-bridge.mjs 12       # 12s of sensor output: frame rate, onsets, BPM, track
 node scripts/probe-sessions.mjs 30     # every media-session switch and art publish, timestamped
 node scripts/probe-transport.mjs seek 30000   # send one command, report whether the session reacted
+node scripts/probe-artwork.mjs "EARFQUAKE" "Tyler, The Creator" "IGOR"   # which cover the lookup picks, and why
 npx electron scripts/preview-rim.mjs out.png music 0.6 2 0.3 0.8   # render the real shader offscreen: mode thickness colors phase amp [head]
 npx electron scripts/preview-player.mjs out.png window     # render a renderer offscreen to a PNG
 node scripts/make-icons.mjs            # regenerate resources/tray.png and icon.png
@@ -286,9 +287,17 @@ feature silently not working.
   every skip. `SwitchGrace` in `MediaSession.cs` makes a non-playing candidate
   prove it is still current before it is accepted. A source that is actually
   playing is still adopted instantly, so starting something never feels laggy.
-- Album art is fetched by title/artist in `src/main/artwork.ts`: iTunes, then
-  Deezer, then the Windows thumbnail as a fallback. Both providers are keyless
-  and match on text, so they cover any player, not just one.
+- Album art is fetched by title/artist in `src/main/artwork.ts`. Both
+  providers (iTunes, Deezer) are keyless and match on text, so they cover any
+  player. Their results are pooled and **scored** by `scoreCandidate` in
+  `match.ts` - album agreement dominates, a result whose title carries a
+  recording qualifier the playing title lacks (remix, live, karaoke...) is
+  rejected outright, and when the session names an album that no candidate
+  matches, nothing is applied and the Windows thumbnail stays. First-match per
+  provider used to put a DJ-mix remix compilation on screen for "EARFQUAKE"
+  because iTunes answered first; a correct small cover beats a wrong large one.
+  `node scripts/probe-artwork.mjs "<title>" "<artist>" "<album>"` shows the
+  ranked candidates and the winner for any track, using the real `match.ts`.
 - **There was a Spotify Web API integration; it was removed deliberately.** The
   API returns HTTP 403 on every endpoint — `/v1/me` included — unless the app
   owner holds Spotify Premium, while OAuth itself succeeds. So it authenticated
