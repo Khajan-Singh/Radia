@@ -4,6 +4,12 @@ precision highp float;
 #define MAX_COLORS 3
 #define MAX_PULSES 8
 
+// Wobble cells around the perimeter. The noise lattice loops over exactly this
+// many cells, so `along` 0 and 1 - the same point, the top-left corner - sample
+// the same value. It is both the sample rate and the period; they must match,
+// which is why it is one constant rather than two literals.
+#define WARP_CELLS 4.0
+
 uniform vec2  uRes;          // drawing buffer size, px
 uniform float uTime;         // seconds since start
 
@@ -95,11 +101,25 @@ vec3 gradient(float t) {
 }
 
 // Cheap value noise, used only to wobble the aurora - not worth a texture.
-float noise(float x) {
-  float i = floor(x);
+//
+// The lattice index wraps to `period` before hashing, which makes the function
+// exactly periodic in x. That matters because the wobble is sampled at
+// `along * WARP_CELLS`, and `along` jumps 1 -> 0 at the top-left corner - the one
+// point where it wraps. With an unbounded lattice the two sides of that corner
+// fell in cells WARP_CELLS apart with unrelated hashes, so the warped gradient
+// tore there by up to the full warp amount. The sample point also scrolls with
+// time, so the tear changed size and sign every frame: a flicker pinned to that
+// one corner, in music mode only, since music is the only mode with warp.
+//
+// Wrapping also keeps the hash input in [0, period) instead of letting it grow
+// with uTime. sin() of a several-thousand-radian argument has spent most of its
+// float32 mantissa and its range reduction is vendor-specific, so the old form
+// quietly degraded the longer the app ran.
+float noise(float x, float period) {
+  float i = mod(floor(x), period);
   float f = fract(x);
   float a = fract(sin(i * 127.1) * 43758.5453);
-  float b = fract(sin((i + 1.0) * 127.1) * 43758.5453);
+  float b = fract(sin(mod(i + 1.0, period) * 127.1) * 43758.5453);
   return mix(a, b, f * f * (3.0 - 2.0 * f));
 }
 
@@ -118,7 +138,7 @@ void main() {
 
   float t = fract(along + uOffset);
   if (uWarp > 0.0) {
-    t = fract(t + (noise(along * 4.0 + uTime * 0.15) - 0.5) * uWarp);
+    t = fract(t + (noise(along * WARP_CELLS + uTime * 0.15, WARP_CELLS) - 0.5) * uWarp);
   }
 
   vec3 color = gradient(t);
