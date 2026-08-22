@@ -6,6 +6,15 @@ import { CH, type PanelSection, type PlayerMode } from '../shared/types'
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 const preload = join(__dirname, '../preload/index.js')
 
+/*
+ * electron-builder stamps the icon onto the packaged exe, so the taskbar and
+ * Alt-Tab are correct there whatever the window says. Unpackaged - which is
+ * every dev run - they fall back to Electron's own atom unless the window
+ * carries an icon itself, so set it explicitly on both visible windows. The
+ * overlay is skipTaskbar and needs none.
+ */
+const appIcon = join(__dirname, '../../resources/icon.png')
+
 function pageUrl(name: 'overlay' | 'player' | 'appearance'): { url?: string; file?: string } {
   return isDev
     ? { url: `${process.env['ELECTRON_RENDERER_URL']}/${name}/index.html` }
@@ -218,6 +227,7 @@ export function createPlayer(): BrowserWindow {
 
   const mode = getSettings().playerMode
   player = new BrowserWindow({
+    icon: appIcon,
     ...(mode === 'compact' ? COMPACT_SIZE : FULL_SIZE),
     ...(mode === 'compact'
       ? { minWidth: COMPACT_SIZE.width, minHeight: COMPACT_SIZE.height }
@@ -413,6 +423,7 @@ export function createAppearance(section?: PanelSection): BrowserWindow {
   }
 
   appearance = new BrowserWindow({
+    icon: appIcon,
     width: 400,
     // Sized to the content at rest (no override wheels). The old 820px left a
     // third of the card as empty surface under the status line.

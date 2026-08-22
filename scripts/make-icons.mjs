@@ -1,6 +1,10 @@
 /**
  * Generates the tray and app icons so the repo carries no binary assets.
- * Draws Radia's mark: a rounded rim of light with a dark interior.
+ *
+ * Radia's mark is the product shot: an opaque dark plate - a screen - with the
+ * light living only on its rim. The plate has to be opaque, not a transparent
+ * interior, or the icon has no silhouette against a light wallpaper and reads
+ * as a coloured fringe around nothing.
  *
  *   node scripts/make-icons.mjs
  */
@@ -67,34 +71,63 @@ function roundedRect(px, py, half, radius) {
   return outside + Math.min(Math.max(qx, qy), 0) - radius
 }
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v))
+
+function hsv(h, s, v) {
+  const c = v * s
+  const hh = ((((h % 360) + 360) % 360) / 60) % 6
+  const x = c * (1 - Math.abs((hh % 2) - 1))
+  const m = v - c
+  const table = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]]
+  const seg = table[Math.floor(hh)]
+  return [seg[0] + m, seg[1] + m, seg[2] + m]
+}
+
+// The plate's own colour, matching --bg in src/renderer/shared/tokens.css.
+const BODY = [0x0c / 255, 0x0c / 255, 0x0e / 255]
+
+// Everything below is in a 32-unit square, scaled to whatever size is asked
+// for, so the proportions are identical at 16px and at 256px.
+const HALF = 13.2      // leaves ~9% padding, which Windows expects around an icon
+const RADIUS = 7.5
+const RIM = 3.0        // core band depth
+
 const mark = (x, y, size) => {
   const s = size / 32
   const cx = (x + 0.5 - size / 2) / s
   const cy = (y + 0.5 - size / 2) / s
-  const d = roundedRect(cx, cy, 14, 5)
+  const d = roundedRect(cx, cy, HALF, RADIUS)
+  const aa = 1 / s
 
-  // A bright band on the outline itself, spilling only slightly inward - the
-  // interior has to stay dark or the mark reads as a blob at 16px.
-  const band = Math.exp(-Math.abs(d) / 1.2)
-  const inner = d < 0 ? Math.exp(d / 2.0) * 0.3 : 0
-  const alpha = Math.min(1, band + inner)
-  if (alpha < 0.02 || d > 1.5) return [0, 0, 0, 0]
+  const plate = clamp01(0.5 - d / aa)
+  if (plate <= 0.002) return [0, 0, 0, 0]
 
-  // Hue sweeps the full circle so it meets itself with no seam at the wrap.
-  const angle = (Math.atan2(cy, cx) / (Math.PI * 2) + 1) % 1
-  const hue = angle * 360 + 320
-  const [r, g, b] = hsv(hue % 360, 0.8, 1)
-  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), Math.round(alpha * 255)]
-}
+  // Perimeter position from a centre-cast ray, as in rim.frag - nearest-edge
+  // arc length differs by a screen width along a corner diagonal and puts a
+  // hard seam out of every corner.
+  const along = (Math.atan2(cy, cx) / (Math.PI * 2) + 1.25) % 1
 
-function hsv(h, s, v) {
-  const c = v * s
-  const hh = h / 60
-  const x = c * (1 - Math.abs((hh % 2) - 1))
-  const m = v - c
-  const table = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]]
-  const seg = table[Math.floor(hh) % 6]
-  return [seg[0] + m, seg[1] + m, seg[2] + m]
+  // A core band hugging the outline plus a wider, softer spill inward. One
+  // falloff alone either reads as a hard stripe or washes out the whole plate.
+  const inside = d < 0 ? 1 : 0
+  const core = Math.pow(1 - clamp01(-d / RIM), 1.5) * inside
+  const spill = Math.pow(1 - clamp01(-d / (RIM * 2.6)), 2.4) * inside * 0.5
+
+  // A two-stop gradient rather than a full hue sweep: closer to what an album
+  // cover actually yields, and it survives 16px where a rainbow turns to mud.
+  // cos() is exactly periodic across the wrap at 1 -> 0, so there is no seam.
+  const sweep = 0.5 + 0.5 * Math.cos(along * Math.PI * 2)
+  const hue = 330 + 110 * sweep
+  const gain = 0.8 + 0.2 * (0.5 + 0.5 * Math.cos(along * Math.PI * 2 - 1.0))
+  const lum = clamp01((core + spill) * 1.35 * gain)
+
+  const [hr, hg, hb] = hsv(hue, 0.9, 1)
+  return [
+    Math.round(clamp01(BODY[0] + hr * lum) * 255),
+    Math.round(clamp01(BODY[1] + hg * lum) * 255),
+    Math.round(clamp01(BODY[2] + hb * lum) * 255),
+    Math.round(plate * 255)
+  ]
 }
 
 mkdirSync(join(root, 'resources'), { recursive: true })
