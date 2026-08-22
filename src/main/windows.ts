@@ -47,10 +47,70 @@ function overlayBounds(display: Display): Electron.Rectangle {
   return getSettings().taskbarSafe ? display.workArea : display.bounds
 }
 
+// ─── Staying on top ─────────────────────────────────────────────────
+
+/*
+ * Windows demotes ordinary topmost windows while a window covering the whole
+ * monitor is in front. With the taskbar set to auto-hide the work area *is* the
+ * display, so every maximised window qualifies - which is why the card kept
+ * sinking behind a maximised browser and had to be fished back off the taskbar.
+ *
+ * Measured, not assumed: pinned at the 'floating' level the card lost
+ * WS_EX_TOPMOST the instant a maximised window was activated, and re-asserting
+ * it on a timer never took - Chromium had already recorded the demotion, so
+ * every later setAlwaysOnTop was a no-op. Pinned at 'screen-saver' it survives
+ * the same test untouched.
+ *
+ * The rim has always used 'screen-saver', which is why the rim never had this
+ * problem. Both windows now go through one helper. A true exclusive-fullscreen
+ * app still covers everything, and nothing can change that.
+ *
+ * The heartbeat stays because the band is not a guarantee of order: anything
+ * else that goes topmost lands above ours and Windows will not put it back.
+ * Pins are re-asserted in rank order, so the rim ends up above the card rather
+ * than the two trading places on every tick.
+ */
+const RANK_PLAYER = 0
+const RANK_OVERLAY = 1
+
+const pinned = new Map<BrowserWindow, number>()
+let pinTimer: NodeJS.Timeout | null = null
+
+function repin(): void {
+  // Deliberately not filtered on isVisible(): the overlay is pinned while it is
+  // still hidden, waiting for ready-to-show, and skipping it there left the rim
+  // un-pinned until the next tick.
+  const live = [...pinned].filter(([win]) => !win.isDestroyed())
+  for (const [win] of live.sort((a, b) => a[1] - b[1])) {
+    win.setAlwaysOnTop(true, 'screen-saver')
+  }
+}
+
+/** Keeps `win` above everything else until it is unpinned or closed. */
+function pinOnTop(win: BrowserWindow, rank: number): void {
+  if (!pinned.has(win)) win.once('closed', () => unpin(win))
+  pinned.set(win, rank)
+  if (!pinTimer) pinTimer = setInterval(repin, 2000)
+  repin()
+}
+
+/*
+ * Clears topmost whether or not the window was pinned here. Fullscreen sets the
+ * flag directly rather than pinning, so an early return on "not in the map"
+ * would leave the player stuck on top of everything after leaving fullscreen.
+ */
+function unpin(win: BrowserWindow): void {
+  pinned.delete(win)
+  if (!win.isDestroyed()) win.setAlwaysOnTop(false)
+  if (pinned.size === 0 && pinTimer) {
+    clearInterval(pinTimer)
+    pinTimer = null
+  }
+}
+
 // ─── Overlay ─────────────────────────────────────────────────────────────────
 
 let overlay: BrowserWindow | null = null
-let topmostTimer: NodeJS.Timeout | null = null
 
 export function getOverlay(): BrowserWindow | null {
   return overlay && !overlay.isDestroyed() ? overlay : null
@@ -85,34 +145,17 @@ export function createOverlay(): BrowserWindow {
   })
 
   overlay.setIgnoreMouseEvents(true)
-  overlay.setAlwaysOnTop(true, 'screen-saver')
+  pinOnTop(overlay, RANK_OVERLAY)
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   overlay.once('ready-to-show', () => overlay?.showInactive())
   forwardErrors(overlay, 'overlay')
   load(overlay, 'overlay')
 
-  if (topmostTimer) clearInterval(topmostTimer)
-  topmostTimer = setInterval(reassertTopmost, 2000)
-
   return overlay
 }
 
-/**
- * Anything else that goes topmost - a maximised video, another always-on-top
- * utility - lands above the rim and stays there. Setting alwaysOnTop to the
- * value it already holds is a no-op, so the flag has to be cycled and the
- * window explicitly raised to actually get back on top.
- */
-function reassertTopmost(): void {
-  const win = getOverlay()
-  if (!win?.isVisible()) return
-  win.setAlwaysOnTop(false)
-  win.setAlwaysOnTop(true, 'screen-saver')
-  win.moveTop()
-}
-
 export function destroyOverlay(): void {
-  if (topmostTimer) { clearInterval(topmostTimer); topmostTimer = null }
+  if (overlay) unpin(overlay)
   if (overlay && !overlay.isDestroyed()) overlay.destroy()
   overlay = null
 }
@@ -233,6 +276,9 @@ export function applyPlayerMode(mode: PlayerMode): void {
   // and leaving it on would just cost a needless DWM blur pass.
   setMaterial(win, mode === 'compact' ? 'acrylic' : 'none')
 
+  // Only the card stays pinned; every other mode gives the flag up.
+  if (mode !== 'compact') unpin(win)
+
   if (mode === 'fullscreen') {
     // Deliberately not setFullScreen(). Covering the display bounds explicitly
     // and going topmost gets the same result, taskbar included, and the rim
@@ -252,8 +298,6 @@ export function applyPlayerMode(mode: PlayerMode): void {
     return
   }
 
-  // Leaving fullscreen has to clear topmost; passing false here does that.
-  win.setAlwaysOnTop(mode === 'compact', mode === 'compact' ? 'floating' : 'normal')
   win.setResizable(mode !== 'compact')
   const min = mode === 'compact' ? COMPACT_SIZE : WINDOW_MIN
   win.setMinimumSize(min.width, min.height)
@@ -267,19 +311,12 @@ export function applyPlayerMode(mode: PlayerMode): void {
       x: workArea.x + workArea.width - COMPACT_SIZE.width - 24,
       y: workArea.y + workArea.height - COMPACT_SIZE.height - 24
     })
-    // Topmost is not the same as raised. The flag was set above, but setting it
-    // does not pull the window over whatever currently owns the foreground, so
-    // the card arrived in the floating band and still behind the app you
-    // switched from - it took a taskbar click to bring it forward, which is not
-    // how a mini player is supposed to behave.
-    //
-    // Cycling the flag is what makes the raise actually take effect (the same
-    // no-op rule reassertTopmost exists for), and show()/focus() hand it the
-    // foreground. show() also covers the case where the window was minimised.
-    win.setAlwaysOnTop(false)
-    win.setAlwaysOnTop(true, 'floating')
+    // Pinned after setResizable, which rewrites the window style and is exactly
+    // the kind of call that drops the topmost bit. show()/focus() are what
+    // bring it forward - being topmost is not the same as being in front, and
+    // without them the card arrived behind the app you switched from.
+    pinOnTop(win, RANK_PLAYER)
     win.show()
-    win.moveTop()
     win.focus()
   } else {
     win.setSize(FULL_SIZE.width, FULL_SIZE.height)
