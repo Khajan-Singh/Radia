@@ -109,7 +109,11 @@ export default function App(): JSX.Element {
           <button className="icon-button sm" onClick={() => api.transport({ kind: 'next' })} title="Next">
             <NextIcon />
           </button>
-          <button className="icon-button sm" onClick={() => api.setPlayerMode('window')} title="Expand">
+          <button
+            className="icon-button sm expand"
+            onClick={() => api.setPlayerMode('window')}
+            title="Expand"
+          >
             <ExpandIcon />
           </button>
         </div>

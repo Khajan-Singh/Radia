@@ -23,7 +23,7 @@ const scrollPx = Number(args[3] ?? 0)
 const SIZES = {
   window: { width: 1180, height: 820 },
   fullscreen: { width: 1440, height: 900 },
-  compact: { width: 380, height: 132 },
+  compact: { width: 420, height: 96 },
   appearance: { width: 400, height: 820 }
 }
 const size = SIZES[mode] ?? SIZES.window

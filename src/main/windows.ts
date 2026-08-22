@@ -130,7 +130,12 @@ export function syncOverlay(): void {
 // ─── Player ──────────────────────────────────────────────────────────────────
 
 const FULL_SIZE = { width: 1180, height: 820 }
-const COMPACT_SIZE = { width: 380, height: 132 }
+const COMPACT_SIZE = { width: 420, height: 96 }
+/* The creation minimums belong to the resizable window mode. The mini card is
+   shorter than they allow, and Windows clamps setBounds to the minimum, so the
+   two have to be swapped per mode or the card comes back 132px tall with a band
+   of empty backdrop under its contents. */
+const WINDOW_MIN = { width: 340, height: 120 }
 
 let player: BrowserWindow | null = null
 let quitting = false
@@ -166,8 +171,9 @@ export function createPlayer(): BrowserWindow {
   const mode = getSettings().playerMode
   player = new BrowserWindow({
     ...(mode === 'compact' ? COMPACT_SIZE : FULL_SIZE),
-    minWidth: 340,
-    minHeight: 120,
+    ...(mode === 'compact'
+      ? { minWidth: COMPACT_SIZE.width, minHeight: COMPACT_SIZE.height }
+      : { minWidth: WINDOW_MIN.width, minHeight: WINDOW_MIN.height }),
     frame: false,
     /*
      * Deliberately NOT transparent, unlike the overlay and the panel.
@@ -249,6 +255,8 @@ export function applyPlayerMode(mode: PlayerMode): void {
   // Leaving fullscreen has to clear topmost; passing false here does that.
   win.setAlwaysOnTop(mode === 'compact', mode === 'compact' ? 'floating' : 'normal')
   win.setResizable(mode !== 'compact')
+  const min = mode === 'compact' ? COMPACT_SIZE : WINDOW_MIN
+  win.setMinimumSize(min.width, min.height)
 
   if (mode === 'compact') {
     // Park the card in the bottom-right of the active display's work area.
