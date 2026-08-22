@@ -261,9 +261,13 @@ which read as a blob in every corner. There is no glow setting any more.
 taking `% 1` at the end, which spends float precision on the integer part and
 gets steppy hours in.
 
-**The beat threshold lives in the helper** and has to be pushed there:
-`syncBeatThreshold()` in `index.ts` runs on the helper's `hello` (it restarts
-with backoff and comes back with its default) and when the slider moves.
+**Beat detection is self-tuning and has no settings.** `Analysis.DetectOnset`
+in the helper thresholds a bass-weighted, log-compressed spectral flux at
+median + k*MAD over a ~2s window, with a refractory period derived from the
+estimated tempo. Nothing is pushed to the helper on `hello`, and the overlay
+normalises the bass/rms envelopes against a slow rolling peak so the rim fills
+its range on quiet and loud sources alike. The old Sensitivity / Beat threshold
+/ Smoothing sliders were removed because moving them made no visible difference.
 
 Audio frames arrive at ~43-47Hz in bursts, one per FFT hop, not 60Hz. The
 overlay latches the newest frame and counts onsets separately (`pendingOnsets`)

@@ -78,10 +78,6 @@ public static class Program
                         if (root.TryGetProperty("positionMs", out var position))
                             _ = media.SeekAsync(position.GetInt64());
                         break;
-                    case "threshold":
-                        if (root.TryGetProperty("value", out var threshold))
-                            audio.Threshold = threshold.GetDouble();
-                        break;
                     case "refresh":
                         media.RequestPublish();
                         break;

@@ -23,8 +23,6 @@ public sealed class AudioCapture : IDisposable
     private volatile bool _restarting;
     private readonly object _lock = new();
 
-    public double Threshold { get; set; } = 1.4;
-
     public void Start()
     {
         lock (_lock)
@@ -34,7 +32,7 @@ public sealed class AudioCapture : IDisposable
             try
             {
                 _capture = new WasapiLoopbackCapture();
-                _analysis = new Analysis(_capture.WaveFormat.SampleRate) { Threshold = Threshold };
+                _analysis = new Analysis(_capture.WaveFormat.SampleRate);
 
                 _capture.DataAvailable += OnData;
                 _capture.RecordingStopped += OnStopped;
@@ -132,7 +130,6 @@ public sealed class AudioCapture : IDisposable
             }
 
             _silentFrames = 0;
-            analysis.Threshold = Threshold;
             analysis.Feed(_mono.AsSpan(0, frameCount), payload =>
                 Protocol.Send(new AudioMessage { frame = payload }));
         }

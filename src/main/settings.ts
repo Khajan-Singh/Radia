@@ -76,9 +76,6 @@ export function getSettings(): Settings {
 /** Applies a partial update and schedules a debounced write. Returns the new settings. */
 export function patchSettings(patch: Partial<Settings>): Settings {
   const next = { ...loadSettings(), ...patch }
-  // Nested objects must merge rather than replace, so a patch touching one
-  // audio field doesn't wipe the others.
-  if (patch.audio) next.audio = { ...loadSettings().audio, ...patch.audio }
   cache = next
   scheduleFlush()
   return next

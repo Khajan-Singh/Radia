@@ -168,27 +168,6 @@ export default function App(): JSX.Element {
           />
         )}
 
-        {/* Static ignores audio entirely; showing live sliders that do nothing
-            reads as broken, so the section is dimmed and disabled there. */}
-        <h2 className="section">Audio reactivity</h2>
-        <div className={`audio-controls ${draft.animation === 'static' ? 'muted' : ''}`}>
-        <Slider
-          label="Sensitivity"
-          value={draft.audio.sensitivity / 2}
-          onChange={(v) => patch({ audio: { ...draft.audio, sensitivity: v * 2 } })}
-        />
-        <Slider
-          label="Beat threshold"
-          value={(draft.audio.beatThreshold - 0.5) / 2.5}
-          onChange={(v) => patch({ audio: { ...draft.audio, beatThreshold: 0.5 + v * 2.5 } })}
-        />
-        <Slider
-          label="Smoothing"
-          value={draft.audio.smoothing}
-          onChange={(v) => patch({ audio: { ...draft.audio, smoothing: v } })}
-        />
-        </div>
-
         <h2 className="section" id="section-display">Display</h2>
         <div className="displays">
           {state.displays.map((display) => {

@@ -56,20 +56,10 @@ export interface Settings {
   displayId: number | null
   /** Player window presentation. */
   playerMode: PlayerMode
-  audio: AudioSettings
 }
 
-export interface AudioSettings {
-  /** Overall reactivity multiplier, 0-2. */
-  sensitivity: number
-  /** Spectral-flux threshold multiplier for onset detection, 0.5-3. */
-  beatThreshold: number
-  /** Envelope release smoothing, 0-1. Higher = laggier, calmer. */
-  smoothing: number
-}
-
-/** Informational only: reconcile() migrates by sniffing values, not by version. v4 dropped `glow`. */
-export const SETTINGS_VERSION = 4
+/** Informational only: reconcile() migrates by sniffing values, not by version. v4 dropped `glow`, v5 dropped `audio` (detection is self-tuning). */
+export const SETTINGS_VERSION = 5
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
@@ -85,8 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   primaryWeight: 0.6,
   secondaryWeight: 0.4,
   displayId: null,
-  playerMode: 'window',
-  audio: { sensitivity: 1, beatThreshold: 1.4, smoothing: 0.5 }
+  playerMode: 'window'
 }
 
 // ─── Now playing ─────────────────────────────────────────────────────────────
