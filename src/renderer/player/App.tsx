@@ -11,7 +11,6 @@ import {
   ExpandIcon,
   FullscreenIcon,
   MinimizeIcon,
-  MonitorIcon,
   NextIcon,
   PaletteIcon,
   PauseIcon,
@@ -231,9 +230,6 @@ export default function App(): JSX.Element {
         </button>
         <button className="tool wide" onClick={() => api.openAppearance()}>
           Settings
-        </button>
-        <button className="tool" onClick={() => api.openAppearance('display')} title="Display">
-          <MonitorIcon />
         </button>
         <button
           className={`tool ${fullscreen ? 'on' : ''}`}
