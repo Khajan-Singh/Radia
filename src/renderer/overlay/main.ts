@@ -231,15 +231,6 @@ function render(now: number): void {
     case 'static':
       break
 
-    case 'breathe':
-      intensity = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin((now - startedAt) / 2600))
-      break
-
-    case 'flow':
-      speed = 0.035
-      warp = 0.06
-      break
-
     case 'music': {
       // Bass drives brightness; the tempo (when known) sets the drift rate so
       // fast tracks visibly move faster than slow ones.

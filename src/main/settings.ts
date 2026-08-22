@@ -23,6 +23,10 @@ function reconcile(stored: unknown): Settings {
   if (s.playerMode === undefined && typeof s.compactPlayer === 'boolean') {
     s.playerMode = s.compactPlayer ? 'compact' : 'window'
   }
+  // The Flow and Breathe rim animations were removed; anyone parked on one of
+  // them lands on Music Sync rather than a mode nothing renders.
+  if (s.animation === 'flow' || s.animation === 'breathe') s.animation = 'music'
+
   const merged = { ...DEFAULT_SETTINGS } as unknown as Record<string, unknown>
   const defaults = DEFAULT_SETTINGS as unknown as Record<string, unknown>
 
