@@ -19,24 +19,36 @@ public sealed class Analysis
 
     private readonly Complex[] _fft = new Complex[FftSize];
     private readonly float[] _magnitude = new float[Bins];
-    private readonly float[] _previousMagnitude = new float[Bins];
+    // Log-compressed magnitudes from the previous hop, for the flux.
+    private readonly float[] _previousLog = new float[Bins];
+    private readonly int _bassTop, _midTop;
 
     // Envelope-followed band energies, which is what actually leaves the helper.
     private double _sub, _bass, _mid, _treble, _rms;
 
     // Spectral flux history, for the adaptive onset threshold and tempo estimate.
     private readonly Queue<double> _fluxHistory = new();
-    private const int FluxHistoryLength = 64;         // ~0.75s at 43 hops/sec
+    private const int FluxHistoryLength = 86;         // ~2s at 43 hops/sec
+    private readonly double[] _scratch = new double[FluxHistoryLength];
+    private double _previousFlux;
     private readonly List<double> _onsetTimes = new();
     private double _lastOnsetTime = -1;
     private double _clock;
     private double _bpm;
 
-    public double Threshold { get; set; } = 1.4;
+    // Onset threshold: median + MadFactor * MAD of the recent flux. Robust to
+    // the onsets themselves inflating the statistics the way a std-dev would.
+    private const double MadFactor = 2.5;
+    private const double MinMad = 0.02;
+    private const double LogGain = 20;                // magnitude scale before log(1+x)
+    private const double MidWeight = 0.25;            // 250Hz-2kHz contribution to flux
 
     public Analysis(int sampleRate)
     {
         _sampleRate = sampleRate;
+        var binWidth = (double)sampleRate / FftSize;
+        _bassTop = (int)(250 / binWidth);
+        _midTop = (int)(2000 / binWidth);
         for (int i = 0; i < FftSize; i++)
         {
             // Hann window - the usual choice for music onset work; it trades a
@@ -79,16 +91,21 @@ public sealed class Analysis
 
         FastFourierTransform.FFT(true, (int)Math.Log2(FftSize), _fft);
 
+        // Onset evidence is half-wave rectified flux (only growth counts, so a
+        // note ending is not a beat) of log-compressed magnitudes (so the scale
+        // barely moves with system volume), weighted toward the bass: kicks and
+        // snares live below 250Hz, and counting the top band let hi-hats fire
+        // the detector three times per beat.
         double flux = 0;
         for (int i = 0; i < Bins; i++)
         {
             var magnitude = MathF.Sqrt(_fft[i].X * _fft[i].X + _fft[i].Y * _fft[i].Y);
             _magnitude[i] = magnitude;
-            // Half-wave rectified flux: only growth counts as onset evidence, so
-            // a note ending does not read as a beat.
-            var delta = magnitude - _previousMagnitude[i];
-            if (delta > 0) flux += delta;
-            _previousMagnitude[i] = magnitude;
+            var logMag = MathF.Log(1f + (float)LogGain * magnitude);
+            var delta = logMag - _previousLog[i];
+            _previousLog[i] = logMag;
+            if (delta <= 0 || i > _midTop) continue;
+            flux += i <= _bassTop ? delta : MidWeight * delta;
         }
 
         var instantRms = Math.Sqrt(sumSquares / FftSize);
@@ -141,29 +158,45 @@ public sealed class Analysis
     }
 
     /// <summary>
-    /// Flags an onset when flux exceeds a local median by the configured factor.
-    /// A fixed threshold cannot work across both a quiet intro and a loud chorus.
+    /// Flags an onset when flux rises clear of the recent distribution. The
+    /// threshold is median + k*MAD over the last ~2s, so it self-tunes across a
+    /// quiet intro and a loud chorus without any user knob; a fixed threshold
+    /// cannot do that, and a mean/std-dev one is dragged up by the very spikes
+    /// it is meant to find.
     /// </summary>
     private bool DetectOnset(double flux)
     {
+        var previousFlux = _previousFlux;
+        _previousFlux = flux;
+
         _fluxHistory.Enqueue(flux);
         while (_fluxHistory.Count > FluxHistoryLength) _fluxHistory.Dequeue();
-        if (_fluxHistory.Count < FluxHistoryLength / 2) return false;
+        var count = _fluxHistory.Count;
+        if (count < FluxHistoryLength / 2) return false;
 
-        var sorted = _fluxHistory.ToArray();
-        Array.Sort(sorted);
-        var median = sorted[sorted.Length / 2];
-        var mean = 0.0;
-        foreach (var value in sorted) mean += value;
-        mean /= sorted.Length;
+        var sorted = _scratch;
+        _fluxHistory.CopyTo(sorted, 0);
+        Array.Sort(sorted, 0, count);
+        var median = sorted[count / 2];
 
-        // Guard against silence, where median and mean are both near zero and
-        // any numerical noise would fire constantly.
-        if (mean < 1e-4) return false;
+        // Guard against silence, where the statistics are all numerical noise.
+        if (median < 1e-3) return false;
 
-        var isOnset = flux > median * Threshold && flux > mean;
-        // Refractory period - 250ms floor keeps one hit from firing three times.
-        if (isOnset && _clock - _lastOnsetTime < 0.25) isOnset = false;
+        for (int i = 0; i < count; i++) sorted[i] = Math.Abs(sorted[i] - median);
+        Array.Sort(sorted, 0, count);
+        var mad = Math.Max(MinMad, sorted[count / 2] * 1.4826);
+
+        // Rising edge only: the hop after a transient is usually still above
+        // the threshold, and without this it fired again on the way down.
+        var isOnset = flux > median + MadFactor * mad
+                   && flux > 1.5 * median
+                   && flux > previousFlux;
+
+        // Refractory period scaled to the tempo - half a beat, clamped so an
+        // unknown or wild estimate cannot lock the detector up or let one hit
+        // fire three times. 120 BPM gives the old fixed 250ms.
+        var refractory = _bpm > 0 ? Math.Clamp(30.0 / _bpm, 0.15, 0.45) : 0.2;
+        if (isOnset && _clock - _lastOnsetTime < refractory) isOnset = false;
 
         if (isOnset)
         {

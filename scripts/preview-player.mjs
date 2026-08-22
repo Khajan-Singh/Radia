@@ -72,8 +72,7 @@ const state = {
     secondaryWeight: 0.4,
     displayId: null,
     playerMode: mode === 'appearance' ? 'window' : mode,
-    spotifyClientId: '',
-    audio: { sensitivity: 1, beatThreshold: 1.4, smoothing: 0.5 }
+    spotifyClientId: ''
   },
   track: {
     title: 'Instant Crush',

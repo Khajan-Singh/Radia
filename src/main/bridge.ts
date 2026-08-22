@@ -6,8 +6,6 @@ import { createInterface, type Interface } from 'readline'
 import type { AudioFrame, BridgeStatus, Track } from '../shared/types'
 
 type Handlers = {
-  /** The helper (re)started and is listening. State that lives in it - the beat threshold - must be resent. */
-  onHello: () => void
   onTrack: (track: Track) => void
   onArtwork: (hash: string, dataUrl: string) => void
   onAudio: (frame: AudioFrame) => void
@@ -118,7 +116,6 @@ function handleLine(line: string): void {
   switch (msg.t) {
     case 'hello':
       publish({ media: true })
-      handlers?.onHello()
       break
     case 'track':
       handlers?.onTrack(msg.track as Track)

@@ -32,6 +32,19 @@ let audio: AudioFrame = { ...SILENT_FRAME }
  * that lands between two rAFs used to be overwritten before anyone saw it.
  */
 let pendingOnsets = 0
+/**
+ * Slow rolling peaks the band envelopes are normalised against, so a quiet
+ * source still fills the visual range and a loud one does not pin at 1. They
+ * rise instantly and decay over ~4s; the floor stops silence from being
+ * amplified into motion.
+ */
+let bassPeak = 0.3
+let rmsPeak = 0.3
+const PEAK_FLOOR = 0.3
+const PEAK_DECAY_S = 4
+/** Envelope release per frame and beat tail - what the old Smoothing slider resolved to at its midpoint. */
+const RELEASE = 0.12
+const BEAT_TAIL_S = 0.8
 
 /** Palette the shader is currently showing, and the one it is easing toward. */
 let shown = { colors: padColors(DEFAULT_PALETTE.colors), centers: centersOf(DEFAULT_PALETTE), count: DEFAULT_PALETTE.colors.length }
@@ -250,16 +263,17 @@ function render(now: number): void {
   const onsets = pendingOnsets
   pendingOnsets = 0
 
-  const { sensitivity, smoothing } = settings.audio
-  const release = lerp(0.25, 0.03, clamp01(smoothing))
+  const rawBass = audio.bass + audio.sub * 0.6
+  const peakDecay = Math.exp(-dt / PEAK_DECAY_S)
+  bassPeak = Math.max(rawBass, PEAK_FLOOR, bassPeak * peakDecay)
+  rmsPeak = Math.max(audio.rms, PEAK_FLOOR, rmsPeak * peakDecay)
 
-  bassEnv = envelope(bassEnv, clamp01((audio.bass + audio.sub * 0.6) * sensitivity), 0.5, release)
-  rmsEnv = envelope(rmsEnv, clamp01(audio.rms * sensitivity), 0.4, release)
-  // A beat is an impulse that rises over ~60ms and decays over 0.4-1.2s, the
-  // Smoothing slider choosing the tail. It must not reach its peak on the
-  // onset frame itself, or every beat is a step.
+  bassEnv = envelope(bassEnv, clamp01(rawBass / bassPeak), 0.5, RELEASE)
+  rmsEnv = envelope(rmsEnv, clamp01(audio.rms / rmsPeak), 0.4, RELEASE)
+  // A beat is an impulse that rises over ~60ms and decays over BEAT_TAIL_S.
+  // It must not reach its peak on the onset frame itself, or every beat is a step.
   const beatTarget = onsets > 0 ? clamp01(0.7 + bassEnv * 0.3) : 0
-  beatPeak = Math.max(beatPeak * Math.exp(-dt / lerp(0.4, 1.2, clamp01(smoothing))), beatTarget)
+  beatPeak = Math.max(beatPeak * Math.exp(-dt / BEAT_TAIL_S), beatTarget)
   beatEnv = ease(beatEnv, beatPeak, dt, 0.06, 0.25)
   // A slow reading of the bass for motion drivers: the raw envelope tracks
   // the bursty ~43Hz frames and is far too twitchy to scale geometry with.
