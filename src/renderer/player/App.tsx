@@ -81,12 +81,15 @@ export default function App(): JSX.Element {
         className="app compact"
         style={{ '--primary': colors.primary, '--secondary': colors.secondary } as React.CSSProperties}
       >
-        <div className="compact-art" ref={haloRef}>
-          {state.artwork ? (
-            <img key={state.artwork.hash} src={state.artwork.dataUrl} decoding="async" alt="" />
-          ) : (
-            <div className="art-empty" />
-          )}
+        <div className="compact-cover" ref={haloRef}>
+          <div className="compact-glow" />
+          <div className="compact-art">
+            {state.artwork ? (
+              <img key={state.artwork.hash} src={state.artwork.dataUrl} decoding="async" alt="" />
+            ) : (
+              <div className="art-empty" />
+            )}
+          </div>
         </div>
         <div className="compact-meta">
           <div className="compact-title">{track?.title ?? 'Nothing playing'}</div>
