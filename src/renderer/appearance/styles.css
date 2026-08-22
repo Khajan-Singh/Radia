@@ -1,0 +1,412 @@
+@import '../shared/tokens.css';
+
+/* The panel is a floating surface, not the player's pure-black field. */
+:root {
+  --bg: var(--surface);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--hairline);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ─── Head ──────────────────────────────────────────────────────────────── */
+
+/* The title bar itself is shared with the player (tokens.css). Only the
+   divider is panel-specific - the player sits on a flat black field and does
+   not need one. */
+.panel .titlebar {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pill {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--hairline);
+  pointer-events: none;
+}
+
+.pill.active {
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 45%, transparent);
+  background: color-mix(in oklab, var(--warn) 12%, transparent);
+}
+
+/* ─── Body ──────────────────────────────────────────────────────────────── */
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 22px 28px;
+}
+
+.panel-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+/* The status pill sits beside the heading now that the title bar is a plain
+   Windows one. */
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: 6px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Was `.panel-title + .row` - the heading wrapper broke that adjacency. */
+.panel-heading + .row {
+  border-top: 1px solid var(--hairline);
+  padding-top: 18px;
+}
+
+.section {
+  margin: 26px 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ─── Rows ──────────────────────────────────────────────────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+}
+
+.row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+  font-weight: 550;
+}
+
+.row-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ─── Select ────────────────────────────────────────────────────────────── */
+
+.select {
+  position: relative;
+  flex: none;
+}
+
+.select select {
+  appearance: none;
+  padding: 8px 34px 8px 14px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--text);
+  background: #232326;
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+
+.select select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* ─── Toggle ────────────────────────────────────────────────────────────── */
+
+.toggle {
+  position: relative;
+  width: 51px;
+  height: 31px;
+  border-radius: 999px;
+  background: #39393d;
+  transition: background 180ms ease;
+  flex: none;
+}
+
+.toggle.on {
+  background: var(--accent);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.toggle.on .toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ─── Slider ────────────────────────────────────────────────────────────── */
+
+.slider-block {
+  padding: 12px 0 6px;
+}
+
+.slider-label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 550;
+}
+
+.slider {
+  --fill: 50%;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0 var(--fill),
+    rgb(255 255 255 / 0.16) var(--fill) 100%
+  );
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+}
+
+.slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}
+
+/* ─── Color wheels ──────────────────────────────────────────────────────── */
+
+.wheels {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 14px 0 6px;
+}
+
+.wheel-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.wheel-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.wheel-percent {
+  margin-left: 4px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.wheel {
+  position: relative;
+}
+
+.wheel canvas {
+  border-radius: 50%;
+  display: block;
+  cursor: crosshair;
+}
+
+.wheel canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.wheel-handle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.wheel-brightness {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sun {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex: none;
+}
+
+.sun.sm {
+  width: 11px;
+  height: 11px;
+}
+
+/* ─── Displays ──────────────────────────────────────────────────────────── */
+
+.displays {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  text-align: left;
+  border: 1.5px solid var(--hairline);
+  background: rgb(255 255 255 / 0.03);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.display svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  flex: none;
+}
+
+.display.selected {
+  border-color: var(--accent);
+  background: rgb(10 132 255 / 0.1);
+}
+
+.display.selected svg {
+  color: var(--accent);
+}
+
+.display-name {
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.display-size {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.display-check {
+  margin-left: 4px;
+}
+
+.display.selected .display-check {
+  color: var(--accent);
+}
+
+/* ─── Reveal flash ──────────────────────────────────────────────────────────
+ *
+ * The player's dock can open this panel pointed at one section. Scrolling alone
+ * is easy to miss on a short list, so the target pulses once on arrival.
+ */
+
+.revealed {
+  animation: reveal-flash 1.4s var(--ease);
+}
+
+@keyframes reveal-flash {
+  0%, 100% { background: transparent; }
+  20%      { background: var(--accent-soft); }
+}
+
+.status {
+  margin-top: var(--s-3);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.status.ok {
+  color: #4ec97a;
+  background: rgb(78 201 122 / 0.1);
+}
+
+.status.warn {
+  color: #ffb54d;
+  background: rgb(255 181 77 / 0.1);
+}
