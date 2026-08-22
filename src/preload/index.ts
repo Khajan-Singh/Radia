@@ -36,6 +36,7 @@ const api = {
   setPlayerMode: (mode: PlayerMode): Promise<void> => ipcRenderer.invoke(CH.setPlayerMode, mode),
   windowAction: (action: 'minimize' | 'maximize' | 'close'): Promise<void> =>
     ipcRenderer.invoke(CH.windowAction, action),
+  playerModeReady: (mode: PlayerMode): void => ipcRenderer.send(CH.playerModeReady, mode),
 
 
   onSettings: (h: (s: Settings) => void): Unsubscribe => on(CH.settings, h),

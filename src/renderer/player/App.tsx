@@ -3,6 +3,7 @@ import { formatTime, useAudioRef, useRadia, usePaletteCss } from '../shared/useR
 import { usePlaybackPosition } from '../shared/usePlaybackPosition'
 import { SeekBar } from '../shared/SeekBar'
 import { usePlayPauseHotkey } from '../shared/usePlayPauseHotkey'
+import { useDecodedImage } from './useDecodedImage'
 import {
   BulbIcon,
   CardIcon,
@@ -38,6 +39,7 @@ export default function App(): JSX.Element {
   const playback = usePlaybackPosition(state.track)
   const colors = usePaletteCss(state.palette)
   const haloRef = useRef<HTMLDivElement>(null)
+  const glowRef = useRef<HTMLDivElement>(null)
   const transportRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLElement>(null)
 
@@ -49,9 +51,46 @@ export default function App(): JSX.Element {
   const idle = useIdle(fullscreen, IDLE_MS)
   const recenter = useRecenterOffset(fullscreen, transportRef, toolbarRef)
   usePlayPauseHotkey()
+  const compactArt = useDecodedImage(mode === 'compact' ? state.artwork?.dataUrl ?? null : null)
 
-  // The halo behind the artwork breathes with the bass. Driving it through a CSS
-  // variable in an rAF loop keeps 60Hz audio out of React's render path.
+  // The card's progress bar is moved by whole pixels. Chromium re-rasters a
+  // composited layer whenever its sub-pixel offset changes, so a percentage
+  // translate repainted the bar on every position tick; an integer one only
+  // produces a new value when the bar actually advances a pixel (~1/s).
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barWidth, setBarWidth] = useState(0)
+  useLayoutEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    const measure = (): void => setBarWidth(el.offsetWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [mode])
+  const barOffset = barWidth ? Math.round(playback.progress * barWidth) - barWidth : null
+
+  // Tell the main process once this mode is actually on screen. The window is
+  // kept hidden across a mode change until then, so the user never sees the
+  // old layout at the new size. Two frames: the first commits layout, the
+  // second guarantees the paint has happened. The card also waits for its
+  // cover to decode, so the art is part of the first frame rather than the
+  // last thing to arrive; the main process has a fallback if that never comes.
+  const compactArtPending = mode === 'compact' && !!state.artwork && !compactArt
+  useLayoutEffect(() => {
+    if (compactArtPending) return
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => api.playerModeReady(mode))
+    })
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner) }
+  }, [mode, compactArtPending])
+
+  // The halo behind the artwork breathes with the bass. Driving it from an rAF
+  // loop keeps 60Hz audio out of React's render path. The full window goes
+  // through a CSS variable; the compact glow is written as opacity/transform
+  // directly, because an unregistered custom property inside calc() forces a
+  // style recalc every frame, and over acrylic that repaint is visible.
   useEffect(() => {
     let handle = 0
     let level = 0
@@ -60,6 +99,11 @@ export default function App(): JSX.Element {
       const target = Math.min(1, audio.current.bass + audio.current.sub * 0.5)
       level += (target - level) * (target > level ? 0.4 : 0.06)
       haloRef.current?.style.setProperty('--pulse', level.toFixed(3))
+      const glow = glowRef.current
+      if (glow) {
+        glow.style.opacity = (0.3 + level * 0.45).toFixed(3)
+        glow.style.transform = `translateY(3px) scale(${(0.9 + level * 0.2).toFixed(3)})`
+      }
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
@@ -81,11 +125,11 @@ export default function App(): JSX.Element {
         className="app compact"
         style={{ '--primary': colors.primary, '--secondary': colors.secondary } as React.CSSProperties}
       >
-        <div className="compact-cover" ref={haloRef}>
-          <div className="compact-glow" />
+        <div className="compact-cover">
+          <div className="compact-glow" ref={glowRef} />
           <div className="compact-art">
-            {state.artwork ? (
-              <img key={state.artwork.hash} src={state.artwork.dataUrl} decoding="async" alt="" />
+            {compactArt ? (
+              <img src={compactArt} decoding="sync" alt="" />
             ) : (
               <div className="art-empty" />
             )}
@@ -94,8 +138,11 @@ export default function App(): JSX.Element {
         <div className="compact-meta">
           <div className="compact-title">{track?.title ?? 'Nothing playing'}</div>
           <div className="compact-artist">{track?.artist ?? ' '}</div>
-          <div className="compact-bar">
-            <div className="compact-bar-fill" style={{ width: `${playback.progress * 100}%` }} />
+          <div className="compact-bar" ref={barRef}>
+            <div
+              className="compact-bar-fill"
+              style={{ transform: barOffset === null ? 'translateX(-100%)' : `translateX(${barOffset}px)` }}
+            />
           </div>
         </div>
         <div className="compact-controls">

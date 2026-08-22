@@ -29,6 +29,7 @@ import {
   getPlayer,
   destroyAllWindows,
   markQuitting,
+  onPlayerModeReady,
   syncOverlay
 } from './windows'
 import { upgradeArtwork } from './artwork'
@@ -360,6 +361,9 @@ function registerIpc(): void {
   })
   ipcMain.handle(CH.openPrefs, () => { createAppearance() })
   ipcMain.handle(CH.toggleRim, () => { setEnabled(!getSettings().enabled) })
+  ipcMain.on(CH.playerModeReady, (_e, mode: PlayerMode) => {
+    onPlayerModeReady(mode)
+  })
   ipcMain.handle(CH.setPlayerMode, (_e, mode: PlayerMode) => {
     setPlayerMode(mode)
   })

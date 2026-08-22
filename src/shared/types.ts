@@ -207,7 +207,10 @@ export const CH = {
   openPrefs: 'radia:openPrefs',
   toggleRim: 'radia:toggleRim',
   setPlayerMode: 'radia:setPlayerMode',
-  windowAction: 'radia:windowAction'
+  windowAction: 'radia:windowAction',
+  // renderer -> main (send): the player has painted the named mode and the
+  // window can be revealed without showing a half-built layout.
+  playerModeReady: 'radia:playerModeReady'
 } as const
 
 /** Everything a renderer needs to paint itself on first load. */

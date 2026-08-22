@@ -209,7 +209,12 @@ export function getPlayer(): BrowserWindow | null {
 
 export function createPlayer(): BrowserWindow {
   const existing = getPlayer()
-  if (existing) { existing.show(); existing.focus(); return existing }
+  if (existing) {
+    // A pending mode change reveals the window itself once the renderer has
+    // painted it; showing here would expose the half-built layout it is hiding.
+    if (pendingMode === null) { existing.show(); existing.focus() }
+    return existing
+  }
 
   const mode = getSettings().playerMode
   player = new BrowserWindow({
@@ -244,7 +249,10 @@ export function createPlayer(): BrowserWindow {
     webPreferences: { preload, sandbox: false, backgroundThrottling: false }
   })
 
-  player.once('ready-to-show', () => player?.show())
+  // No `ready-to-show` here. That event fires on the first paint of whatever
+  // the renderer has at that moment, which for the mini card was an empty
+  // acrylic rectangle that then filled in piecemeal. The window is revealed
+  // only by onPlayerModeReady, once the renderer reports the mode painted.
   applyPlayerMode(mode)
 
   // Closing the player closes the app. It used to hide to tray and leave the
@@ -262,14 +270,55 @@ export function createPlayer(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  // A cold load (the dev server especially) can outlast the reveal fallback,
+  // so restart the clock once the page is actually there; the renderer acks
+  // within a couple of frames of that.
+  player.webContents.once('did-finish-load', () => {
+    if (pendingMode !== null) armRevealFallback(pendingMode)
+  })
   load(player, 'player')
   return player
 }
 
-/** Moves the player between windowed, fullscreen and the floating mini card. */
+/*
+ * Mode changes happen in two phases: prepare, then reveal.
+ *
+ * The settings broadcast that tells the renderer to re-layout is asynchronous,
+ * while the material flip and setBounds below are immediate. Done in one go,
+ * the window spent several frames at the new size and backdrop still painting
+ * the *old* layout - a black box the size of the card, or a see-through card
+ * the size of the full window - and over DWM acrylic every raster tile that
+ * landed late showed up as a lighter box fading in. So applyPlayerMode only
+ * prepares the window, hidden, and the renderer acks once the new mode has
+ * actually been painted (playerModeReady); onPlayerModeReady then shows it.
+ * A fallback timer reveals it regardless, so a renderer that never acks can't
+ * leave the window hidden.
+ */
+const REVEAL_FALLBACK_MS = 600
+
+let currentMode: PlayerMode | null = null
+let pendingMode: PlayerMode | null = null
+let revealTimer: NodeJS.Timeout | null = null
+
+function armRevealFallback(mode: PlayerMode): void {
+  if (revealTimer) clearTimeout(revealTimer)
+  revealTimer = setTimeout(() => onPlayerModeReady(mode), REVEAL_FALLBACK_MS)
+}
+
+/** Prepares the player for a mode - size, backdrop, pin - without showing it. */
 export function applyPlayerMode(mode: PlayerMode): void {
   const win = getPlayer()
   if (!win) return
+
+  // Window <-> full screen keep their opaque black ground, so a live resize is
+  // fine there. Anything involving the card swaps backdrop and layout at once
+  // and has to go dark for the swap; a short hidden beat is invisible, a
+  // half-painted card is not.
+  const involvesCard = mode === 'compact' || currentMode === 'compact'
+  if (involvesCard && win.isVisible()) win.hide()
+  currentMode = mode
+  pendingMode = mode
+  armRevealFallback(mode)
 
   // Only the mini player floats over the desktop, so it is the only mode that
   // wants the system backdrop; the other two paint opaque black over it anyway
@@ -294,7 +343,6 @@ export function applyPlayerMode(mode: PlayerMode): void {
     win.setResizable(false)
     win.setBounds(bounds)
     win.setAlwaysOnTop(true, 'normal')
-    win.focus()
     return
   }
 
@@ -312,16 +360,26 @@ export function applyPlayerMode(mode: PlayerMode): void {
       y: workArea.y + workArea.height - COMPACT_SIZE.height - 24
     })
     // Pinned after setResizable, which rewrites the window style and is exactly
-    // the kind of call that drops the topmost bit. show()/focus() are what
-    // bring it forward - being topmost is not the same as being in front, and
-    // without them the card arrived behind the app you switched from.
+    // the kind of call that drops the topmost bit. The show()/focus() that
+    // bring it forward - being topmost is not the same as being in front -
+    // happen in onPlayerModeReady.
     pinOnTop(win, RANK_PLAYER)
-    win.show()
-    win.focus()
   } else {
     win.setSize(FULL_SIZE.width, FULL_SIZE.height)
     win.center()
   }
+}
+
+/** The renderer has painted `mode`: reveal the prepared window. */
+export function onPlayerModeReady(mode: PlayerMode): void {
+  if (mode !== pendingMode) return
+  pendingMode = null
+  if (revealTimer) clearTimeout(revealTimer)
+  revealTimer = null
+  const win = getPlayer()
+  if (!win) return
+  win.show()
+  win.focus()
 }
 
 /**

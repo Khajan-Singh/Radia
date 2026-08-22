@@ -1,12 +1,18 @@
 /**
- * Renders the real player renderer offscreen and writes a PNG, so the layout
- * can be checked without screenshotting the desktop (which captures whatever
- * else happens to be in front) and without touching the running app.
+ * Reports which compositor layers of a renderer repaint, and when.
  *
- *   npx electron scripts/preview-player.mjs out.png [window|fullscreen|compact|appearance] [artPath] [scrollPx]
+ *   npx electron scripts/probe-layers.mjs - [window|fullscreen|compact]
  *
- * It stubs the `window.radia` preload API with static state, so the renderer
- * mounts exactly as it does in the app but talks to nothing.
+ * Loads the renderer offscreen with the same stubbed state as preview-player,
+ * attaches the LayerTree devtools domain, then pokes the things that change at
+ * runtime (glow, progress, text, palette, a button) and prints every layer
+ * whose paint count moved. Two baseline steps come first: anything that paints
+ * there is painting continuously with nothing happening.
+ *
+ * This exists because the mini player sits on DWM acrylic, where every raster
+ * of a tile is visible as a lighter box. "No repaints" at rest and on glow and
+ * progress is the pass condition; a change that shows the card's root layer
+ * (the <> entry, window-sized) painting is a regression.
  */
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { writeFileSync, readFileSync, existsSync } from 'node:fs'
@@ -72,7 +78,8 @@ const state = {
     secondaryWeight: 0.4,
     displayId: null,
     playerMode: mode === 'appearance' ? 'window' : mode,
-    spotifyClientId: ''
+    spotifyClientId: '',
+    audio: { sensitivity: 1, beatThreshold: 1.4, smoothing: 0.5 }
   },
   track: {
     title: 'Instant Crush',
@@ -152,17 +159,42 @@ app.whenReady().then(async () => {
   if (process.env.ELECTRON_RENDERER_URL) await win.loadURL(url)
   else await win.loadFile(url)
 
-  // Let React mount, fonts settle and the art fade finish.
-  await new Promise((r) => setTimeout(r, 1200))
-  if (scrollPx) {
-    await win.webContents.executeJavaScript(
-      `document.querySelector('.panel-body,.stage')?.scrollTo(0, ${scrollPx})`
-    )
-    await new Promise((r) => setTimeout(r, 400))
+  await new Promise((r) => setTimeout(r, 1500))
+  const dbg = win.webContents.debugger
+  dbg.attach('1.3')
+  await dbg.sendCommand('DOM.enable')
+  await dbg.sendCommand('DOM.getDocument', { depth: -1 })
+  let layers = []
+  dbg.on('message', (_e, method, params) => { if (method === 'LayerTree.layerTreeDidChange') layers = params.layers ?? [] })
+  await dbg.sendCommand('LayerTree.enable')
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+  const js = (code) => win.webContents.executeJavaScript(code)
+  async function describe(l) {
+    if (!l.backendNodeId) return '(no node)'
+    try {
+      const { node } = await dbg.sendCommand('DOM.describeNode', { backendNodeId: l.backendNodeId })
+      const attrs = node.attributes ?? []; const i = attrs.indexOf('class')
+      return `<${node.localName}${i >= 0 ? ' .' + attrs[i + 1].replace(/ /g, '.') : ''}>`
+    } catch { return '?' }
   }
-  const image = await win.webContents.capturePage()
-  writeFileSync(out, image.toPNG())
-  console.log(`wrote ${out} (${size.width}x${size.height}, ${mode})`)
+  async function snap() { const m = new Map(); for (const l of layers) m.set(l.layerId, l.paintCount); return m }
+  async function step(name, code) {
+    await wait(300); const before = await snap()
+    await js(code); await wait(300)
+    const lines = []
+    for (const l of layers) {
+      const b = before.get(l.layerId); if (b === undefined || b !== l.paintCount) lines.push(`    paint +${l.paintCount - (b ?? 0)}  ${await describe(l)}  ${l.width}x${l.height}`)
+    }
+    console.log(`== ${name}: ${lines.length ? '' : 'no repaints'}`); for (const x of lines) console.log(x)
+  }
+  console.log('layers at rest:'); for (const l of layers) console.log('   ', await describe(l), `${l.width}x${l.height} paints=${l.paintCount}`)
+  await step('baseline (no change)', '0')
+  await step('baseline again', '0')
+  await step('glow opacity/transform', `(()=>{const g=document.querySelector('.compact-glow');g.style.opacity='0.7';g.style.transform='translateY(3px) scale(1.08)'})()`)
+  await step('bar width', `document.querySelector('.compact-bar-fill').style.transform='translateX(-70px)'`)
+  await step('title text', `document.querySelector('.compact-title').textContent='Something Else'`)
+  await step('palette --primary', `document.querySelector('.app').style.setProperty('--primary','#3377ff')`)
+  await step('primary button bg hover-ish', `document.querySelector('.icon-button.sm.primary').style.background='#555'`)
   app.quit()
 })
 

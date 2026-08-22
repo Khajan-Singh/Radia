@@ -53,6 +53,7 @@ node scripts/probe-transport.mjs seek 30000   # send one command, report whether
 node scripts/probe-artwork.mjs "EARFQUAKE" "Tyler, The Creator" "IGOR"   # which cover the lookup picks, and why
 npx electron scripts/preview-rim.mjs out.png music 0.6 2 0.3 0.8   # render the real shader offscreen: mode thickness colors phase amp [head]
 npx electron scripts/preview-player.mjs out.png window     # render a renderer offscreen to a PNG
+npx electron scripts/probe-layers.mjs - compact            # which compositor layers repaint, and on what
 node scripts/make-icons.mjs            # regenerate resources/tray.png and icon.png
 ```
 
@@ -152,6 +153,25 @@ an assumption.
 
 **Transparency cannot be changed on a live window.** Anything that alters overlay
 geometry semantics (display, taskbar-safe) destroys and recreates it.
+
+**The player is revealed only after the renderer acks the painted mode.**
+`applyPlayerMode` prepares the window hidden (material, bounds, pin) and
+`onPlayerModeReady` shows it when the renderer sends `CH.playerModeReady`
+(two rAFs after the mode committed, plus the decoded cover in compact), with a
+fallback timer re-armed on `did-finish-load`. Before this, the settings
+broadcast was async while the resize was immediate, so the card was shown
+while still painting the old layout and filled in tile by tile. Over DWM
+acrylic every raster of a tile is a visible lighter box, so the compact card
+must not repaint at all while it sits there: no `filter` layers, no per-frame
+style recalcs (the glow's opacity/transform are written directly from the rAF
+loop, not via a `--pulse` custom property), no outer shadows clipped by the
+window edge, and the progress bar is a whole-pixel `translateX` on its own
+layer - a `width` change repainted the whole content layer 5 times a second
+for as long as anything played, and both `scaleX` and a fractional translate
+re-raster the layer too. Everything that can legitimately repaint (text,
+controls, the palette wash) is on its own small layer so the base layer is
+painted once. `npx electron scripts/probe-layers.mjs - compact` measures
+this; "no repaints" at rest, on the glow and on progress is the pass bar.
 
 **The player window is deliberately NOT transparent; the overlay and panel are.**
 The mini player is frosted glass over the desktop, and a transparent window cannot

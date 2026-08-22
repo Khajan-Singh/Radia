@@ -412,9 +412,12 @@ button {
      on all four sides is the brightest thing on the card. The lit edge is the
      inset highlight below, which only touches the top. */
   border: 1px solid var(--hairline);
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge-top),
-    0 18px 44px rgb(0 0 0 / 0.5);
+  /* Inset highlight only. The card fills the window edge to edge, so an outer
+     drop shadow is clipped entirely - it cost a blur layer and painted
+     nothing. */
+  box-shadow: inset 0 1px 0 var(--glass-edge-top);
+  /* Nothing inside may invalidate outside the card. */
+  contain: paint;
 }
 
 /*
@@ -457,11 +460,18 @@ button {
  * the rAF loop takes about a second to decay, so the repaint ran ~60 times.
  *
  * Split apart, the glow animates on `opacity` and `transform` only, which is
- * the same compositor-only recipe `.art-halo` uses in the full window. Nothing
- * repaints.
+ * the same compositor-only recipe `.art-halo` uses in the full window.
+ *
+ * Two further things differ from `.art-halo`, both for the same reason: the
+ * card sits on DWM acrylic, where every raster that lands late is a visible
+ * lighter box. The glow is a radial gradient rather than a `filter: blur()` -
+ * a filter is its own render surface that has to be rasterised before the
+ * card is whole - and its opacity/transform are written directly from the rAF
+ * loop in App.tsx, not derived from a `--pulse` variable: an unregistered
+ * custom property inside calc() is a style recalc every frame, not a
+ * compositor update.
  */
 .compact-cover {
-  --pulse: 0;
   position: relative;
   width: 60px;
   height: 60px;
@@ -469,18 +479,21 @@ button {
 }
 
 /* Sits before the cover in the DOM, and both are `z-index: auto`, so paint
-   order alone puts it behind - the same trick as `.art-halo`. */
+   order alone puts it behind - the same trick as `.art-halo`. Oversized so the
+   gradient's soft edge extends past the cover the way the old blur did. */
 .compact-glow {
   position: absolute;
-  inset: 0;
-  border-radius: 8px;
+  inset: -18px;
+  border-radius: 50%;
   pointer-events: none;
-  background: color-mix(in oklab, var(--primary) 75%, transparent);
-  /* Static blur: the radius never changes, so the blurred texture is rasterised
-     once and only ever transformed after that. */
-  filter: blur(11px);
-  opacity: calc(0.3 + var(--pulse) * 0.45);
-  transform: translateY(3px) scale(calc(0.9 + var(--pulse) * 0.2));
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--primary) 75%, transparent) 0%,
+    color-mix(in oklab, var(--primary) 45%, transparent) 45%,
+    transparent 100%
+  );
+  opacity: 0.3;
+  transform: translateY(3px) scale(0.9);
   will-change: transform, opacity;
 }
 
@@ -533,10 +546,44 @@ button {
   overflow: hidden;
 }
 
+/*
+ * Progress is a transform, not a width. The position ticks every 200ms, and a
+ * width change is a layout and a repaint of the card's whole content layer -
+ * measured with the LayerTree protocol, that was ~37 repaints a second with a
+ * transition on it and 5 a second without, for as long as anything played.
+ * Over acrylic every one of those re-rasters a visible box. A translate on a
+ * promoted layer is compositor-only, so nothing paints.
+ *
+ * Translate, not scaleX: Chromium derives a layer's raster scale from its
+ * transform, so a scale change re-rasters the layer (measured: ~13/s). And
+ * whole pixels, not a percentage: a fractional offset re-rasters too, so
+ * App.tsx measures the bar and rounds. No transition - the bar moves under a
+ * pixel a second, and animating it only kept the compositor busy.
+ *
+ * The fill is full width and slid left by the unplayed part; `.compact-bar`
+ * clips it.
+ */
 .compact-bar-fill {
+  width: 100%;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transform: translateX(-100%);
+  will-change: transform;
+}
+
+/*
+ * Everything on the card that can legitimately repaint gets its own compositor
+ * layer, so a repaint is confined to a small layer and the card's base layer -
+ * the fill and hairline, the thing sitting directly on the acrylic - is painted
+ * once and never again. The palette wash in ::before is the one that matters
+ * most: it changes with every cover, and without a layer of its own that is a
+ * full-card repaint twice per track (thumbnail, then high-res).
+ */
+.app.compact::before,
+.compact-meta,
+.compact-controls {
+  will-change: transform;
 }
 
 .compact-controls {
