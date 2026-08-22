@@ -15,7 +15,10 @@ A Windows rebuild of the macOS app [Lumn](https://www.trylumn.xyz/).
   saturated colors so the rim picks up an album's accent rather than its
   background. Crossfades between tracks.
 - **Motion from audio** — WASAPI loopback capture, FFT, band energies and
-  spectral-flux onset detection. Beat pulses travel around the perimeter.
+  spectral-flux onset detection. Three rim modes: **Static**, **Sync** (a
+  travelling wave on the rim's inner edge that swells and brightens on beats)
+  and **Snake** (a lit segment half the perimeter long that crawls around
+  the screen and lurches on every beat).
 - **Now-playing player** — three presentations, switchable from the toolbar or
   the tray: a **window**, **full screen** (fills the display over the taskbar,
   chrome fading away once the pointer rests, Esc to leave), and a **compact**

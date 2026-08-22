@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
-import { DEFAULT_SETTINGS, SETTINGS_VERSION, type Settings } from '../shared/types'
+import { ANIMATION_MODES, DEFAULT_SETTINGS, SETTINGS_VERSION, type AnimationMode, type Settings } from '../shared/types'
 
 let cache: Settings | null = null
 let flushTimer: NodeJS.Timeout | null = null
@@ -23,9 +23,10 @@ function reconcile(stored: unknown): Settings {
   if (s.playerMode === undefined && typeof s.compactPlayer === 'boolean') {
     s.playerMode = s.compactPlayer ? 'compact' : 'window'
   }
-  // The Flow and Breathe rim animations were removed; anyone parked on one of
-  // them lands on Music Sync rather than a mode nothing renders.
-  if (s.animation === 'flow' || s.animation === 'breathe') s.animation = 'music'
+  // Removed or unknown rim animations (Flow and Breathe once existed) land on
+  // Sync rather than a mode nothing renders. `glow` (dropped in v4) falls
+  // out naturally: the merge below only carries keys present in the defaults.
+  if (!ANIMATION_MODES.includes(s.animation as AnimationMode)) s.animation = 'music'
 
   const merged = { ...DEFAULT_SETTINGS } as unknown as Record<string, unknown>
   const defaults = DEFAULT_SETTINGS as unknown as Record<string, unknown>

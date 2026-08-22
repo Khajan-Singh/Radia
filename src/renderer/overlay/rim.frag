@@ -2,32 +2,32 @@
 precision highp float;
 
 #define MAX_COLORS 3
-#define MAX_PULSES 8
-
-// Wobble cells around the perimeter. The noise lattice loops over exactly this
-// many cells, so `along` 0 and 1 - the same point, the top-left corner - sample
-// the same value. It is both the sample rate and the period; they must match,
-// which is why it is one constant rather than two literals.
-#define WARP_CELLS 4.0
+#define MODE_STATIC 0
+#define MODE_SYNC   1
+#define MODE_SNAKE  2
+#define TAU 6.28318530718
 
 uniform vec2  uRes;          // drawing buffer size, px
-uniform float uTime;         // seconds since start
 
 uniform vec3  uColors[MAX_COLORS];
 uniform float uCenters[MAX_COLORS];   // gradient center of each color, 0-1 around the rim
 uniform int   uCount;
 
-uniform float uThickness;    // solid core depth, px
+uniform float uThickness;    // solid core depth, px (before the wave profile)
 uniform float uSpill;        // how far past the core the light reaches, px
 uniform float uGlowStrength; // how bright the spill is relative to the core
-
 uniform float uCorner;       // corner radius of the frame, px
-uniform float uOffset;       // gradient rotation around the perimeter, 0-1
-uniform float uIntensity;    // global multiplier from the animation mode
-uniform float uWarp;         // aurora warp amount, 0 disables
 
-uniform vec2  uPulses[MAX_PULSES];  // (position 0-1, strength 0-1)
-uniform float uPulseWidth;
+uniform float uOffset;       // gradient rotation around the perimeter, 0-1
+uniform float uIntensity;    // global brightness, 0-1. Never touches hue.
+
+uniform int   uMode;         // MODE_*
+uniform float uWavePhase;    // travelling-wave phase, 0-1 (wrapped on the JS side)
+uniform float uWaveAmp;      // wave height as a fraction of uThickness, 0-1
+
+uniform float uSnakeHead;    // head position, 0-1 clockwise from top-left
+uniform float uSnakeLength;  // body length, fraction of the perimeter
+uniform float uSnakeFeather; // taper at each end, fraction of the body length
 
 out vec4 fragColor;
 
@@ -64,8 +64,9 @@ vec2 rimCoord(vec2 p, vec2 res) {
   // Depth comes from a rounded-rectangle distance field rather than the nearest
   // edge. min() over four edges is continuous but its gradient is not, and the
   // kink shows up as a mitre line running diagonally out of every corner. The
-  // rounded field is smooth, and it curves the light around the corners the way
-  // a real display bezel does.
+  // rounded field is smooth. The two halves of this function follow different
+  // shapes - `s` a sharp rectangle, `d` a rounded one - and that is fine: `s`
+  // only has to be continuous, and it is.
   vec2 b = halfRes - uCorner;
   vec2 e = abs(q) - b;
   float outside = length(max(e, 0.0)) + min(max(e.x, e.y), 0.0) - uCorner;
@@ -100,69 +101,94 @@ vec3 gradient(float t) {
   return acc / max(total, 1e-5);
 }
 
-// Cheap value noise, used only to wobble the aurora - not worth a texture.
+// ─── Wave ────────────────────────────────────────────────────────────────────
 //
-// The lattice index wraps to `period` before hashing, which makes the function
-// exactly periodic in x. That matters because the wobble is sampled at
-// `along * WARP_CELLS`, and `along` jumps 1 -> 0 at the top-left corner - the one
-// point where it wraps. With an unbounded lattice the two sides of that corner
-// fell in cells WARP_CELLS apart with unrelated hashes, so the warped gradient
-// tore there by up to the full warp amount. The sample point also scrolls with
-// time, so the tear changed size and sign every frame: a flicker pinned to that
-// one corner, in music mode only, since music is the only mode with warp.
+// A travelling wave around the perimeter, 0-1. Two harmonics so it reads as
+// water rather than a sine.
 //
-// Wrapping also keeps the hash input in [0, period) instead of letting it grow
-// with uTime. sin() of a several-thousand-radian argument has spent most of its
-// float32 mantissa and its range reduction is vendor-specific, so the old form
-// quietly degraded the longer the app ran.
-float noise(float x, float period) {
-  float i = mod(floor(x), period);
-  float f = fract(x);
-  float a = fract(sin(i * 127.1) * 43758.5453);
-  float b = fract(sin(mod(i + 1.0, period) * 127.1) * 43758.5453);
-  return mix(a, b, f * f * (3.0 - 2.0 * f));
+// Every multiplier on a wrapping coordinate is an INTEGER - the cycle counts
+// on `along` AND the rates on `uWavePhase`. `along` wraps 1 -> 0 at the
+// top-left corner; `uWavePhase` wraps 1 -> 0 every few seconds (and sooner
+// after a beat surge). An integer multiple of a whole turn is invisible to
+// sin(); a non-integer one is a step. The second harmonic's rate used to be
+// 1.6, so at every phase wrap it snapped 0.6 of a wavelength - which read as
+// the wave jumping backwards "every here and there", clustered around beats
+// because surges bring the wrap forward. The beat driver was never the cause.
+//
+// Rates 1 and 2 over 5 and 8 cycles travel at slightly different speeds, so
+// the pattern slowly morphs instead of sliding rigidly. That is deliberate.
+float wave(float along) {
+  float w = 0.65 * sin(TAU * (5.0 * along - uWavePhase))
+          + 0.35 * sin(TAU * (8.0 * along + 0.37 - 2.0 * uWavePhase));
+  return 0.5 + 0.5 * w;
 }
+
+// Thickness multiplier from the wave: up to 4.3x the base at full amplitude.
+// `reach` in main() must cover the same maximum or crests get clipped by the
+// early-out.
+float swell(float along) {
+  return 1.0 + uWaveAmp * (0.5 + 2.8 * wave(along));
+}
+
+// What the music modes average at their resting amplitude (0.6): the mean of
+// swell() over a cycle. Static draws at this so the Thickness slider reads the
+// same in every mode - a bare 1.0 made Static look half as thick as Sync.
+#define STATIC_SWELL 2.14
 
 void main() {
   vec2 rim = rimCoord(gl_FragCoord.xy, uRes);
   float depth = rim.x;
   float along = rim.y;
 
-  // Bail early on the vast interior region that contributes nothing. The rim
-  // is a thin frame; most pixels are pure discard work.
-  float reach = uThickness + uSpill;
+  // Bail early on the vast interior region that contributes nothing. The
+  // profile can only swell the core, never push the reach past this.
+  float reach = uThickness * max(STATIC_SWELL, 1.0 + 3.3 * uWaveAmp) + uSpill;
   if (depth > reach) {
     fragColor = vec4(0.0);
     return;
   }
 
-  float t = fract(along + uOffset);
-  if (uWarp > 0.0) {
-    t = fract(t + (noise(along * WARP_CELLS + uTime * 0.15, WARP_CELLS) - 0.5) * uWarp);
+  // Per-pixel thickness profile (multiplier on uThickness), a coverage term for
+  // the snake's tapered ends, and the colour. Colour is ALWAYS the gradient:
+  // nothing here lifts it toward white, so a beat can only change brightness.
+  float profile = STATIC_SWELL;
+  float cover = 1.0;
+  vec3 color;
+
+  if (uMode == MODE_SNAKE) {
+    // Distance behind the head: 0 at the head, growing toward the tail.
+    float u = fract(uSnakeHead - along);
+    if (u >= uSnakeLength) {
+      fragColor = vec4(0.0);
+      return;
+    }
+    float feather = max(uSnakeFeather * uSnakeLength, 1e-4);
+    cover = smoothstep(0.0, feather, u) * smoothstep(0.0, feather, uSnakeLength - u);
+    // The body thins to nothing at both ends and rides the same wave as Sync.
+    profile = cover * swell(along);
+    // Palette runs head -> tail along the body, so the colours travel with it.
+    color = gradient(u / uSnakeLength);
+  } else {
+    if (uMode == MODE_SYNC) {
+      // The outer edge stays flush with the screen; only the inner edge moves.
+      profile = swell(along);
+    }
+    color = gradient(fract(along + uOffset));
   }
 
-  vec3 color = gradient(t);
+  float thick = max(uThickness * profile, 1.0);
 
-  // Thickness is the solid band hugging the edge; spill is the bloom inside it.
-  // The spill has to reach exactly zero at a finite distance - an exponential
-  // tail never quite does, and the residue tints the whole screen.
-  float core = 1.0 - smoothstep(0.0, max(uThickness, 1.0), depth);
-  float spillT = clamp((depth - uThickness) / max(uSpill, 1.0), 0.0, 1.0);
+  // Solid core with a soft inner edge, then a halo that continues from where
+  // the edge starts to soften. Starting the halo at `thick` instead would leave
+  // a step where the core has reached zero and the halo is still at full
+  // strength. The halo has to reach exactly zero at a finite distance - an
+  // exponential tail never quite does, and the residue tints the whole screen.
+  float inner = thick * 0.55;
+  float core = 1.0 - smoothstep(inner, thick, depth);
+  float spillT = clamp((depth - inner) / max(uSpill, 1.0), 0.0, 1.0);
   float halo = pow(1.0 - spillT, 2.6);
-  float alpha = clamp(core + halo * uGlowStrength, 0.0, 1.0);
+  float alpha = core + (1.0 - core) * halo * uGlowStrength;
 
-  // Beat pulses ride around the perimeter, brightening as they pass.
-  float pulse = 0.0;
-  for (int i = 0; i < MAX_PULSES; i++) {
-    float strength = uPulses[i].y;
-    if (strength <= 0.0) continue;
-    float dist = abs(fract(t - uPulses[i].x + 0.5) - 0.5);
-    pulse += strength * exp(-dist * dist / max(uPulseWidth * uPulseWidth, 1e-5));
-  }
-
-  alpha *= uIntensity;
-  alpha = clamp(alpha * (1.0 + pulse * 0.9), 0.0, 1.0);
-  color = mix(color, min(color * 1.6 + 0.25, vec3(1.0)), clamp(pulse, 0.0, 1.0));
-
+  alpha = clamp(alpha * cover * uIntensity, 0.0, 1.0);
   fragColor = vec4(color, alpha);
 }

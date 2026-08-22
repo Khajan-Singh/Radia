@@ -6,7 +6,13 @@
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export type GradientMode = 1 | 2 | 3
-export type AnimationMode = 'music' | 'static'
+/**
+ * - `static` still gradient
+ * - `music`  Sync: a travelling wave on the inner edge, brightness swells on beats
+ * - `snake`  Snake: a lit segment half the perimeter long that crawls and lurches on beats
+ */
+export type AnimationMode = 'static' | 'music' | 'snake'
+export const ANIMATION_MODES: readonly AnimationMode[] = ['static', 'music', 'snake']
 
 /**
  * How the now-playing view presents itself.
@@ -33,10 +39,11 @@ export interface Settings {
   animation: AnimationMode
   /** Hug the work area instead of full display bounds, so the taskbar stays clear. */
   taskbarSafe: boolean
-  /** Solid core of the rim, 0-1 (mapped to px in the shader). */
+  /**
+   * Solid core of the rim, 0-1 (mapped to px by the overlay). The halo and the
+   * corner radius are derived from it; there is no separate glow setting.
+   */
   thickness: number
-  /** How far the light spills past the core, 0-1. */
-  glow: number
   /** Ignore album art colors and use the manual wheels below. */
   overrideAlbumColor: boolean
   primary: ColorOverride
@@ -61,7 +68,8 @@ export interface AudioSettings {
   smoothing: number
 }
 
-export const SETTINGS_VERSION = 3
+/** Informational only: reconcile() migrates by sniffing values, not by version. v4 dropped `glow`. */
+export const SETTINGS_VERSION = 4
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
@@ -69,8 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gradientMode: 2,
   animation: 'music',
   taskbarSafe: false,
-  thickness: 0.32,
-  glow: 0.85,
+  thickness: 0.6,
   overrideAlbumColor: false,
   primary: { h: 340, s: 0.85, v: 0.95 },
   secondary: { h: 150, s: 0.85, v: 0.95 },
