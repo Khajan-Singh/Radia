@@ -16,8 +16,6 @@ const api = window.radia
 
 const ANIMATIONS: { value: AnimationMode; label: string }[] = [
   { value: 'music', label: 'Music Sync' },
-  { value: 'flow', label: 'Flow' },
-  { value: 'breathe', label: 'Breathe' },
   { value: 'static', label: 'Static' }
 ]
 

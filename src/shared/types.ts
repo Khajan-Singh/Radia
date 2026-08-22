@@ -6,7 +6,7 @@
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export type GradientMode = 1 | 2 | 3
-export type AnimationMode = 'music' | 'flow' | 'breathe' | 'static'
+export type AnimationMode = 'music' | 'static'
 
 /**
  * How the now-playing view presents itself.
