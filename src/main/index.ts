@@ -30,7 +30,8 @@ import {
   destroyAllWindows,
   markQuitting,
   onPlayerModeReady,
-  syncOverlay
+  syncOverlay,
+  syncPlayerBorder
 } from './windows'
 import { upgradeArtwork } from './artwork'
 
@@ -411,7 +412,8 @@ if (!app.requestSingleInstanceLock()) {
       onArtwork: handleBridgeArtwork,
       onAudio: handleAudio,
       onStatus: handleBridgeStatus,
-      onAck: handleAck
+      onAck: handleAck,
+      onHello: syncPlayerBorder
     })
 
     const onDisplayChange = (): void => {

@@ -81,6 +81,15 @@ public static class Program
                     case "refresh":
                         media.RequestPublish();
                         break;
+                    case "border":
+                        // Electron has no API for the 1px border Windows 11 draws
+                        // around every top-level window. It shows as a white hairline
+                        // at the screen edge in full screen, so the player asks us to
+                        // hide it (or restore the default) for its HWND.
+                        if (root.TryGetProperty("hwnd", out var hwnd))
+                            WindowBorder.Set((nint)hwnd.GetInt64(),
+                                root.TryGetProperty("visible", out var v) && v.GetBoolean());
+                        break;
                 }
             }
             catch (Exception ex)

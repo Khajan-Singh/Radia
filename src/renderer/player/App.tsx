@@ -272,7 +272,7 @@ export default function App(): JSX.Element {
       </main>
 
       <footer className="toolbar chrome" ref={toolbarRef}>
-        <button className="tool" onClick={() => api.openAppearance('color')} title="Colors">
+        <button className="tool" onClick={() => api.openAppearance('color')} title="Design">
           <PaletteIcon />
         </button>
         <button

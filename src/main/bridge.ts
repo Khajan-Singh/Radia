@@ -11,6 +11,7 @@ type Handlers = {
   onAudio: (frame: AudioFrame) => void
   onStatus: (status: BridgeStatus) => void
   onAck: (cmd: string, ok: boolean) => void
+  onHello?: () => void
 }
 
 const MAX_BACKOFF_MS = 15_000
@@ -116,6 +117,8 @@ function handleLine(line: string): void {
   switch (msg.t) {
     case 'hello':
       publish({ media: true })
+      // A fresh helper has no DWM state; the player re-asserts its border setting.
+      handlers?.onHello?.()
       break
     case 'track':
       handlers?.onTrack(msg.track as Track)

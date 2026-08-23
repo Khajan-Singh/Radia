@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen, shell, type Display } from 'electron'
 import { join } from 'path'
 import { getSettings } from './settings'
+import { sendBridge } from './bridge'
 import { CH, type PanelSection, type PlayerMode } from '../shared/types'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -338,6 +339,12 @@ export function applyPlayerMode(mode: PlayerMode): void {
   // Only the card stays pinned; every other mode gives the flag up.
   if (mode !== 'compact') unpin(win)
 
+  // Windows 11 paints a 1px border around every top-level window, which in full
+  // screen is a white hairline along the screen edge over the black stage, and rounds
+  // its corners so the desktop peeks through at each one. Electron
+  // cannot touch either, so the helper sets the DWM attributes for this HWND.
+  setBorderVisible(win, mode !== 'fullscreen')
+
   if (mode === 'fullscreen') {
     // Deliberately not setFullScreen(). Covering the display bounds explicitly
     // and going topmost gets the same result, taskbar included, and the rim
@@ -397,6 +404,16 @@ export function onPlayerModeReady(mode: PlayerMode): void {
  * 11 22H2. A machine that cannot do acrylic should lose the frost, not the
  * player window.
  */
+/** Re-sends the border state for the current mode, e.g. after the helper restarts. */
+export function syncPlayerBorder(): void {
+  if (player && !player.isDestroyed()) setBorderVisible(player, getSettings().playerMode !== 'fullscreen')
+}
+
+function setBorderVisible(win: BrowserWindow, visible: boolean): void {
+  const hwnd = Number(win.getNativeWindowHandle().readBigUInt64LE())
+  sendBridge({ c: 'border', hwnd, visible })
+}
+
 function setMaterial(win: BrowserWindow, material: 'acrylic' | 'none'): void {
   try {
     win.setBackgroundMaterial(material)
