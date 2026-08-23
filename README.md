@@ -9,15 +9,15 @@ with a small now-playing window and a settings panel.
 
 ## Features
 
-- **Album-colored rim** — the palette is extracted from the current cover and
+- **Album-colored rim:** the palette is extracted from the current cover and
   crossfades when the track changes. Or pick up to three colors yourself.
-- **Three animations** — *Sync* (a wave on the rim that swells on beats),
+- **Three animations:** *Sync* (a wave on the rim that swells on beats),
   *Snake* (a lit segment that crawls at tempo), and *Static*.
-- **Works with anything** — uses the Windows media session for track info and
+- **Works with anything:** uses the Windows media session for track info and
   system audio loopback for the beat, so no player integration or account is needed.
-- **High-res covers** — the small thumbnail Windows provides is swapped for
+- **High-res covers:** the small thumbnail Windows provides is swapped for
   the real artwork, matched by title/artist/album.
-- **Now-playing window** — a regular window, a full-screen view, or a compact
+- **Now-playing window:** a regular window, a full-screen view, or a compact
   frosted card that stays on top. Play/pause, skip and seek from it; Space
   toggles playback.
 - **Display choice and taskbar-safe mode** for multi-monitor setups.
