@@ -20,7 +20,6 @@ jobs:
           dotnet-version: 9.0.x
       - run: npm ci
       - run: npm run package
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/Radia-*-setup.exe
-          generate_release_notes: true
+      - run: gh release create "$env:GITHUB_REF_NAME" (Get-Item dist/Radia-*-setup.exe).FullName --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
