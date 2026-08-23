@@ -4,7 +4,7 @@ Ambient rim lighting for Windows that follows your music.
 
 Radia draws a soft band of light around the edges of your display, colored from
 the album art of whatever is playing and moving with the audio. It works with
-any player Windows knows about — Spotify, a browser tab, a local file — and ships
+any player Windows knows about (Spotify, a browser tab, a local file) and ships
 with a small now-playing window and a settings panel.
 
 ## Features
