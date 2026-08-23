@@ -19,7 +19,7 @@ jobs:
         with:
           dotnet-version: 9.0.x
       - run: npm ci
-      - run: npm run package
+      - run: npm run build; npm run build:bridge; npx electron-builder --win nsis --publish never
       - run: gh release create "$env:GITHUB_REF_NAME" (Get-Item dist/Radia-*-setup.exe).FullName --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
