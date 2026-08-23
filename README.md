@@ -6,6 +6,15 @@ whatever is actually coming out of your speakers.
 
 A Windows rebuild of the macOS app [Lumn](https://www.trylumn.xyz/).
 
+## Download
+
+Grab `Radia-<version>-setup.exe` from the
+[latest release](https://github.com/Khajan-Singh/Radia/releases/latest) and run
+it. Nothing else needs installing.
+
+The installer is not code-signed, so Windows SmartScreen will say "Windows
+protected your PC" the first time: click **More info**, then **Run anyway**.
+
 ## What it does
 
 - **Rim lighting** — a transparent, click-through, always-on-top glow hugging the
@@ -47,7 +56,8 @@ npm run build:bridge     # compiles the C# helper into resources/bridge
 npm run dev
 ```
 
-`npm run package` produces an NSIS installer in `dist/`.
+`npm run package` produces an NSIS installer in `dist/`. Pushing a `v*` tag
+builds it on GitHub Actions and attaches it to a release.
 
 ## How it fits together
 

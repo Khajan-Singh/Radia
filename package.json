@@ -59,7 +59,8 @@
         "nsis"
       ],
       "icon": "resources/icon.png",
-      "artifactName": "Radia-${version}-setup.${ext}"
+      "artifactName": "Radia-${version}-setup.${ext}",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
