@@ -10,15 +10,10 @@ import {
   MonitorIcon,
   SunIcon
 } from '../shared/Icons'
+import { ANIMATIONS } from '../../shared/types'
 import type { AnimationMode, ColorOverride, GradientMode, Settings } from '../../shared/types'
 
 const api = window.radia
-
-const ANIMATIONS: { value: AnimationMode; label: string }[] = [
-  { value: 'music', label: 'Sync' },
-  { value: 'snake', label: 'Snake' },
-  { value: 'static', label: 'Static' }
-]
 
 const GRADIENTS: { value: GradientMode; label: string }[] = [
   { value: 1, label: '1 Color' },

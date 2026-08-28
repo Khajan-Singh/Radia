@@ -19,6 +19,13 @@ const out = resolve(args[0] ?? join(root, 'player-preview.png'))
 const mode = args[1] ?? 'window'
 const artPath = args[2] && args[2] !== '-' ? resolve(args[2]) : null
 const scrollPx = Number(args[3] ?? 0)
+// Optional CSS selectors (comma-separated, visited in turn) to rest the pointer
+// on before capturing, for hover states: '.design' opens the animation picker,
+// '.design,.titlebar' opens it and then leaves. Real input events, since hover
+// cannot be forced from script.
+const hovers = args[4] ? args[4].split(',').map((s) => s.trim()).filter(Boolean) : []
+// Optional CSS selector to click after hovering (e.g. '.anim-option:nth-child(3)').
+const click = args[5] ?? null
 
 const SIZES = {
   window: { width: 1180, height: 820 },
@@ -160,6 +167,33 @@ app.whenReady().then(async () => {
       `document.querySelector('.panel-body,.stage')?.scrollTo(0, ${scrollPx})`
     )
     await new Promise((r) => setTimeout(r, 400))
+  }
+  if (hovers.length) {
+    // Full screen may already be idle (chrome faded, pointer-events none), so
+    // wake it first and let the chrome settle back before measuring.
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 10, y: 10 })
+    await new Promise((r) => setTimeout(r, 600))
+  }
+  for (const hover of hovers) {
+    const box = await win.webContents.executeJavaScript(
+      `(() => { const r = document.querySelector(${JSON.stringify(hover)})?.getBoundingClientRect();
+         return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null })()`
+    )
+    if (!box) throw new Error(`hover: nothing matches ${hover}`)
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(box.x), y: Math.round(box.y) })
+    await new Promise((r) => setTimeout(r, 600))
+  }
+  if (click) {
+    const box = await win.webContents.executeJavaScript(
+      `(() => { const r = document.querySelector(${JSON.stringify(click)})?.getBoundingClientRect();
+         return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null })()`
+    )
+    if (!box) throw new Error(`click: nothing matches ${click}`)
+    const at = { x: Math.round(box.x), y: Math.round(box.y) }
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...at })
+    win.webContents.sendInputEvent({ type: 'mouseDown', ...at, button: 'left', clickCount: 1 })
+    win.webContents.sendInputEvent({ type: 'mouseUp', ...at, button: 'left', clickCount: 1 })
+    await new Promise((r) => setTimeout(r, 600))
   }
   const image = await win.webContents.capturePage()
   writeFileSync(out, image.toPNG())

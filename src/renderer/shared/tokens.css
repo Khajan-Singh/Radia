@@ -98,6 +98,8 @@
   --m-slow: 260ms;
   --m-lazy: 900ms;
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A light overshoot for things that move to a new place (the picker chips). */
+  --ease-spring: linear(0, 0.35 10%, 0.75 22%, 1.02 38%, 0.99 55%, 1);
 }
 
 /* ─── Window dragging ───────────────────────────────────────────────────────

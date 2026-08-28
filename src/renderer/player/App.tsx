@@ -19,6 +19,7 @@ import {
   PrevIcon,
   SkipIcon
 } from '../shared/Icons'
+import { ANIMATIONS, type AnimationMode } from '../../shared/types'
 
 const api = window.radia
 
@@ -272,9 +273,7 @@ export default function App(): JSX.Element {
       </main>
 
       <footer className="toolbar chrome" ref={toolbarRef}>
-        <button className="tool" onClick={() => api.openAppearance('color')} title="Design">
-          <PaletteIcon />
-        </button>
+        <DesignDock animation={state.settings.animation} idle={idle} />
         <button
           className={`tool ${state.settings.enabled ? 'on' : ''}`}
           onClick={() => api.toggleRim()}
@@ -384,4 +383,233 @@ function useIdle(active: boolean, delay: number): boolean {
   }, [active, bump])
 
   return idle
+}
+
+/** Grace after the pointer leaves the dock before the pill closes. Just enough
+ *  to survive crossing the gap between icon and pill; leaving should feel
+ *  immediate. */
+const CLOSE_GRACE_MS = 80
+
+/**
+ * The Design dock: the palette button plus the animation picker that slides
+ * out of it on hover.
+ *
+ * Open state is driven from JS rather than :hover / :focus-within. Each of
+ * these was a real bug: a clicked option keeps focus, so :focus-within held the
+ * pill open until a click elsewhere; the toolbar re-centres as the pill grows,
+ * so elements move under a stationary pointer and Chromium does not reliably
+ * re-fire boundary events for that; and nothing closed it when the window lost
+ * focus or full screen went idle. So: open on enter, close after a short grace
+ * on leave, re-check the last pointer position whenever the layout settles, and
+ * close outright on blur / pointer leaving the window / idle / Escape.
+ */
+function DesignDock({ animation, idle }: { animation: AnimationMode; idle: boolean }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const dockRef = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef(0)
+  const pointer = useRef<{ x: number; y: number } | null>(null)
+
+  const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), [])
+  const show = useCallback(() => {
+    cancelClose()
+    setOpen(true)
+  }, [cancelClose])
+  const hide = useCallback(() => {
+    cancelClose()
+    setOpen(false)
+  }, [cancelClose])
+  const hideSoon = useCallback(() => {
+    cancelClose()
+    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_GRACE_MS)
+  }, [cancelClose])
+
+  /** Whether the last known pointer position is still over the dock (with slack). */
+  const pointerInside = useCallback((): boolean => {
+    const p = pointer.current
+    const el = dockRef.current
+    if (!p || !el) return false
+    const r = el.getBoundingClientRect()
+    const slack = 8
+    return (
+      p.x >= r.left - slack && p.x <= r.right + slack && p.y >= r.top - slack && p.y <= r.bottom + slack
+    )
+  }, [])
+
+  // While open: track the pointer, and close the moment it is provably gone.
+  // A move that lands outside the dock closes at once - the grace is only for
+  // leave events, and re-arming it on every move would keep the pill open for
+  // as long as the pointer kept moving.
+  useEffect(() => {
+    if (!open) return
+    const onMove = (e: PointerEvent): void => {
+      pointer.current = { x: e.clientX, y: e.clientY }
+      if (pointerInside()) cancelClose()
+      else hide()
+    }
+    const onLeaveWindow = (): void => hide()
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('blur', onLeaveWindow)
+    window.addEventListener('pointercancel', onLeaveWindow)
+    document.documentElement.addEventListener('mouseleave', onLeaveWindow)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('blur', onLeaveWindow)
+      window.removeEventListener('pointercancel', onLeaveWindow)
+      document.documentElement.removeEventListener('mouseleave', onLeaveWindow)
+    }
+  }, [open, pointerInside, cancelClose, hide])
+
+  // Full-screen chrome is fading out; take the pill with it.
+  useEffect(() => {
+    if (idle) hide()
+  }, [idle, hide])
+
+  useEffect(() => cancelClose, [cancelClose])
+
+  // The slot finished growing or shrinking, i.e. the toolbar just re-centred.
+  // If the pointer is no longer over the moved dock, close - this is the case
+  // :hover misses.
+  const onSettled = (e: React.TransitionEvent): void => {
+    if (e.propertyName !== 'grid-template-columns') return
+    if (open && pointer.current && !pointerInside()) hideSoon()
+  }
+
+  return (
+    <div
+      className={`design ${open ? 'open' : ''}`}
+      ref={dockRef}
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'touch') return
+        pointer.current = { x: e.clientX, y: e.clientY }
+        show()
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'touch') return
+        hideSoon()
+      }}
+      onFocus={show}
+      onBlur={(e) => {
+        if (!dockRef.current?.contains(e.relatedTarget as Node | null)) hide()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          hide()
+        }
+      }}
+      onTransitionEnd={onSettled}
+    >
+      <button className="tool" onClick={() => api.openAppearance('color')} aria-label="Design">
+        <PaletteIcon />
+      </button>
+      <AnimationPicker animation={animation} open={open} />
+    </div>
+  )
+}
+
+type ChipGeom = { x: number; w: number }
+
+/**
+ * The three animation modes as a segmented control: an album-tinted chip sits
+ * on the selected mode and glides when the selection changes; hovering an
+ * option only brightens its label.
+ *
+ * Positions are measured because the labels are not equal widths. The pill's
+ * padding is constant in both states so an offset measured while collapsed is
+ * still right when open; measuring is repeated on open and on resize anyway.
+ *
+ * `patchSettings` broadcasts to every window except the sender, so the player
+ * never hears its own change echoed back; the choice is held locally until the
+ * next broadcast (from anywhere) supersedes it.
+ */
+function AnimationPicker({
+  animation,
+  open
+}: {
+  animation: AnimationMode
+  open: boolean
+}): JSX.Element {
+  const [current, setCurrent] = useState(animation)
+  useEffect(() => setCurrent(animation), [animation])
+
+  const pillRef = useRef<HTMLDivElement>(null)
+  const options = useRef(new Map<AnimationMode, HTMLButtonElement>())
+  const [geom, setGeom] = useState<Partial<Record<AnimationMode, ChipGeom>>>({})
+
+  useLayoutEffect(() => {
+    const pill = pillRef.current
+    if (!pill) return
+    const measure = (): void => {
+      const next: Partial<Record<AnimationMode, ChipGeom>> = {}
+      options.current.forEach((el, mode) => {
+        next[mode] = { x: el.offsetLeft, w: el.offsetWidth }
+      })
+      setGeom(next)
+    }
+    measure()
+    // Labels reflow when the window changes mode (font size) or fonts load.
+    const observer = new ResizeObserver(measure)
+    observer.observe(pill)
+    options.current.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [open])
+
+  const choose = (value: AnimationMode): void => {
+    setCurrent(value)
+    void api.patchSettings({ animation: value })
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    const order = ANIMATIONS.map((a) => a.value)
+    const i = order.indexOf(current)
+    let next: AnimationMode | null = null
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = order[(i + 1) % order.length]
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+      next = order[(i - 1 + order.length) % order.length]
+    else if (e.key === 'Home') next = order[0]
+    else if (e.key === 'End') next = order[order.length - 1]
+    if (!next) return
+    e.preventDefault()
+    choose(next)
+    options.current.get(next)?.focus()
+  }
+
+  const g = geom[current]
+  const chipStyle = { '--x': `${g?.x ?? 0}px`, '--w': `${g?.w ?? 0}px` } as React.CSSProperties
+
+  return (
+    <div className="anim-slot">
+      <div
+        className="anim-pill"
+        role="radiogroup"
+        aria-label="Animation"
+        ref={pillRef}
+        onKeyDown={onKeyDown}
+      >
+        <span className="anim-chip" aria-hidden style={chipStyle} />
+        {ANIMATIONS.map(({ value, label }) => {
+          const selected = current === value
+          return (
+            <button
+              key={value}
+              ref={(el) => {
+                if (el) options.current.set(value, el)
+                else options.current.delete(value)
+              }}
+              className={`anim-option ${selected ? 'selected' : ''}`}
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              // No focus on mouse click: focus is for the keyboard, and a
+              // focused option must not hold the pill open.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(value)}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }

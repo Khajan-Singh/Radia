@@ -37,7 +37,7 @@ export function spillPx(corePx, dpr) {
 export const GLOW_STRENGTH = 0.42
 
 /** Snake: share of the perimeter the snake covers, and the taper at each end (share of its length). */
-export const SNAKE_LENGTH = 0.5
+export const SNAKE_LENGTH = 0.75
 export const SNAKE_FEATHER = 0.12
 
 export const MODE = { static: 0, music: 1, snake: 2 }

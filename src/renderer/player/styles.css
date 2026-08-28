@@ -202,6 +202,7 @@ button {
  */
 .icon-button,
 .tool,
+.anim-pill,
 .exit-fullscreen {
   position: relative;
   border: none;
@@ -217,6 +218,7 @@ button {
 /* The specular sheen. Without it the buttons read as merely see-through. */
 .icon-button::before,
 .tool::before,
+.anim-pill::before,
 .exit-fullscreen::before {
   content: '';
   position: absolute;
@@ -229,6 +231,7 @@ button {
 /* Icons and labels sit above the sheen. */
 .icon-button > *,
 .tool > *,
+.anim-pill > *,
 .exit-fullscreen > * {
   position: relative;
 }
@@ -244,6 +247,7 @@ button {
 @supports not (backdrop-filter: blur(1px)) {
   .icon-button,
   .tool,
+  .anim-pill,
   .exit-fullscreen {
     background: rgb(255 255 255 / 0.12);
   }
@@ -350,10 +354,109 @@ button {
   background: color-mix(in oklab, var(--primary) 30%, var(--glass-fill));
 }
 
+/* ─── Design: hover-expanding animation picker ──────────────────────────────
+ *
+ * Open state is the `.open` class, set from JS (see DesignDock in App.tsx);
+ * there is deliberately no :hover / :focus-within rule here. The slot is a
+ * one-column grid whose track animates 0fr -> 1fr: unlike max-width, that
+ * tweens over the pill's real width, so open and close take the same time and
+ * neither snaps. The toolbar is centre-justified, so the neighbouring tools
+ * glide aside as it opens. */
+.design {
+  display: flex;
+  align-items: center;
+}
+
+/* The palette icon stays lit while the pointer is on the pill. */
+.design.open .tool {
+  color: var(--text);
+}
+
+/* One transition for both directions, so the close is the open played back:
+   a quicker or differently-eased collapse read as a stutter next to the glide. */
+.anim-slot {
+  display: grid;
+  grid-template-columns: 0fr;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    grid-template-columns var(--m-slow) var(--ease),
+    margin var(--m-slow) var(--ease),
+    opacity var(--m-slow) var(--ease);
+}
+
+.design.open .anim-slot {
+  grid-template-columns: 1fr;
+  margin-left: var(--s-2);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Padding is the same collapsed and open, so option offsets measured in one
+   state hold in the other; the 8px sliver that is left when collapsed is
+   clipped by the slot. */
+.anim-pill {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 42px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* The selected mode's chip, under the labels: tinted from the album like the
+   lit bulb, and glides when the selection changes. --x / --w come from the
+   measured option. */
+.anim-pill > .anim-chip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: var(--w);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--primary) 30%, var(--glass-fill));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    0 1px 2px rgb(0 0 0 / 0.35);
+  transform: translateX(var(--x));
+  transition:
+    transform var(--m-slow) var(--ease-spring),
+    width var(--m-slow) var(--ease);
+}
+
+.anim-option {
+  height: 34px;
+  padding: 0 var(--s-4);
+  border: none;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--t-sm);
+  font-weight: 550;
+  transition:
+    color var(--m-fast) ease,
+    transform var(--m-fast) ease;
+}
+
+.anim-option:hover,
+.anim-option.selected {
+  color: var(--text);
+}
+
+.anim-option:active {
+  transform: scale(0.96);
+}
+
 /* One visible focus treatment for everything keyboard-reachable in the player;
    the browser default ring is invisible against pure black. */
 .icon-button:focus-visible,
 .tool:focus-visible,
+.anim-option:focus-visible,
 .track:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--primary) 80%, white);
   outline-offset: 2px;
@@ -758,6 +861,21 @@ button {
   font-size: 15px;
 }
 
+.app.fullscreen .anim-pill {
+  height: 52px;
+}
+
+.app.fullscreen .anim-option {
+  height: 40px;
+  padding: 0 var(--s-5);
+  font-size: 15px;
+}
+
+.app.fullscreen .anim-pill > .anim-chip {
+  top: 6px;
+  bottom: 6px;
+}
+
 .exit-fullscreen {
   position: absolute;
   top: 22px;
@@ -852,7 +970,10 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chrome {
+  .chrome,
+  .anim-slot,
+  .anim-chip,
+  .anim-option {
     transition: none;
   }
 

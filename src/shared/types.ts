@@ -9,10 +9,16 @@ export type GradientMode = 1 | 2 | 3
 /**
  * - `static` still gradient
  * - `music`  Sync: a travelling wave on the inner edge, brightness swells on beats
- * - `snake`  Snake: a lit segment half the perimeter long that crawls and lurches on beats
+ * - `snake`  Snake: a lit segment three quarters of the perimeter long that crawls and lurches on beats
  */
 export type AnimationMode = 'static' | 'music' | 'snake'
 export const ANIMATION_MODES: readonly AnimationMode[] = ['static', 'music', 'snake']
+/** Display order and labels, shared by every picker so they agree. */
+export const ANIMATIONS: readonly { value: AnimationMode; label: string }[] = [
+  { value: 'music', label: 'Sync' },
+  { value: 'snake', label: 'Snake' },
+  { value: 'static', label: 'Static' }
+]
 
 /**
  * How the now-playing view presents itself.

@@ -47,7 +47,7 @@ node scripts/probe-sessions.mjs 30          # every media-session switch / art p
 node scripts/probe-transport.mjs seek 30000 # send one command to the helper, report whether the session reacted
 node scripts/probe-artwork.mjs "<title>" "<artist>" ["<album>"]   # ranked cover candidates + winner, via the real match.ts
 npx electron scripts/preview-rim.mjs out.png [mode thickness colors phase amp head intensity]  # render rim.frag offscreen
-npx electron scripts/preview-player.mjs out.png window|fullscreen|compact|appearance          # render a renderer to PNG
+npx electron scripts/preview-player.mjs out.png window|fullscreen|compact|appearance [art scroll hoverSels clickSel]  # render a renderer to PNG (hoverSels e.g. .design,.titlebar)
 npx electron scripts/probe-layers.mjs - compact   # which compositor layers repaint, and on what
 node scripts/make-icons.mjs                 # regenerate resources/tray.png and icon.png (no binary assets are hand-made)
 ```
