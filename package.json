@@ -1,6 +1,6 @@
 {
   "name": "radia",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Ambient rim lighting for Windows that follows your music",
   "main": "out/main/index.js",
   "author": "khajan09singh@gmail.com",

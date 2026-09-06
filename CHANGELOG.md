@@ -10,6 +10,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-06
+
 ### Changed
 - README states plainly that the installer is unsigned and that SmartScreen
   will warn on first run, and gains a Privacy section listing every network
