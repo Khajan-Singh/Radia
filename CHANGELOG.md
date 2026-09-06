@@ -10,6 +10,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-06
+
 ### Changed
 - New app icon colours: the rim sweeps from violet to cyan instead of magenta
   to yellow, which held up poorly on light wallpapers.
