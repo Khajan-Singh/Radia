@@ -10,6 +10,17 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+- README states plainly that the installer is unsigned and that SmartScreen
+  will warn on first run, and gains a Privacy section listing every network
+  request Radia makes (cover art lookups and update checks, nothing else).
+
+### Internal
+- Code signing through SignPath was dropped before it shipped; the release
+  workflow is a single build-and-publish job again.
+- `npm run release` bumps the version itself instead of calling npm, and
+  ignores untracked files when checking for a clean tree.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added
