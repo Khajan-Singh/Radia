@@ -12,7 +12,11 @@ with a small now-playing window and a settings panel.
 - **Album-colored rim:** the palette is extracted from the current cover and
   crossfades when the track changes. Or pick up to three colors yourself.
 - **Three animations:** *Sync* (a wave on the rim that swells on beats),
-  *Snake* (a lit segment that crawls at tempo), and *Static*.
+  *Snake* (a lit segment that glides at tempo and surges on each beat), and
+  *Static*. Switch between them from the Design button in the player; a Speed
+  slider in the settings panel sets the pace.
+- **Beats that land:** onsets are locked to the song's tempo, so the rim moves
+  on the beat through quiet passages and fills instead of jittering.
 - **Works with anything:** uses the Windows media session for track info and
   system audio loopback for the beat, so no player integration or account is needed.
 - **High-res covers:** the small thumbnail Windows provides is swapped for
@@ -55,7 +59,13 @@ npm ci
 npm run build:bridge   # C# helper -> resources/bridge
 npm run dev            # run in development
 npm run package        # NSIS installer -> dist/
+npm run release        # tag a release (add -- minor or -- major); CI publishes it
 ```
+
+Releases are cut from `CHANGELOG.md`: write what changed under *Unreleased*,
+then `npm run release` moves it under the new version, tags, and pushes. The
+GitHub Actions workflow builds the installer and publishes the release with
+that section as its notes.
 
 Radia is an Electron app (React renderers, a WebGL rim overlay) plus a small
 self-contained C# helper, `RadiaBridge.exe`, which owns the two things Node
