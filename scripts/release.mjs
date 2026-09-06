@@ -6,8 +6,8 @@
  *
  * Moves the CHANGELOG's Unreleased section under the new version, bumps
  * package.json / package-lock.json, commits, tags `vX.Y.Z` and pushes both.
- * The tag push triggers .github/workflows/release.yml, which builds, signs
- * (when SignPath secrets are configured) and publishes the GitHub release.
+ * The tag push triggers .github/workflows/release.yml, which builds and
+ * publishes the GitHub release.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'

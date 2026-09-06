@@ -24,16 +24,14 @@ shell: `$env:Path = "C:\Program Files\dotnet;$env:Path"` first. A running
 
 Releases: `npm run release [-- minor|major]` rolls `CHANGELOG.md`'s Unreleased
 section under the new version, bumps `package.json`, commits, tags `v*` and
-pushes. The tag runs `.github/workflows/release.yml`: build, package the app
-directory, sign `Radia.exe` + `RadiaBridge.exe` via SignPath, build the NSIS
-installer from that directory, sign the installer, re-derive `latest.yml` and
-the blockmap (`scripts/finalize-release.mjs` - signing changes the hash), then
-publish the release with the changelog section as notes. Every signing step is
-skipped when the `SIGNPATH_*` secrets are absent. Auto-update is
-`electron-updater` against GitHub Releases (`src/main/updater.ts`); it needs
-`latest.yml` and the blockmap on the release, and only runs when packaged.
-`signAndEditExecutable: false` means rcedit does not embed the icon/version
-info in `Radia.exe`; leave it unless you also verify rcedit works in CI.
+pushes. The tag runs `.github/workflows/release.yml`, which builds the NSIS
+installer on `windows-latest` and publishes the release with the changelog
+section as notes. Auto-update is `electron-updater` against GitHub Releases
+(`src/main/updater.ts`); it needs `latest.yml` and the blockmap on the release
+and only runs when packaged. Installers are not code-signed
+(`signAndEditExecutable: false`); if signing is ever added, it changes the
+installer's hash, so `latest.yml` and the blockmap must be regenerated after
+signing or the updater rejects the download.
 
 There are no automated tests. This is a real-time, visual project; verification is
 running the app and the probe scripts below.
