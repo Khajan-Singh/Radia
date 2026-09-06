@@ -13,6 +13,8 @@ release notes.
 ## [0.2.0] - 2026-09-06
 
 ### Added
+- Animation picker on the player's Design button: hover it to switch between
+  Sync, Snake and Static without opening the settings panel.
 - Speed slider in the Appearance panel, scaling how fast Sync and Snake move.
 - Automatic updates: Radia checks GitHub Releases in the background and offers
   "Restart to update" in the player and the tray menu.
@@ -22,7 +24,8 @@ release notes.
   off-beat hits once locked, and fills in softly when a beat is missed, so the
   rim moves regularly instead of jittering.
 - Snake glides at a tempo-scaled pace, surges on each beat, and coasts to a
-  stop in silence. Its ripple travels with its body.
+  stop in silence. Its ripple travels with its body, and it now covers three
+  quarters of the rim instead of half.
 - Waves are more distinct: troughs sit at the bare rim and crests are narrower
   and taller.
 
