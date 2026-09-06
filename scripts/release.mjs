@@ -24,7 +24,7 @@ const run = (cmd, ...args) =>
   execFileSync(cmd, args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', shell: process.platform === 'win32' && cmd === 'npm' }).trim()
 const git = (...args) => run('git', ...args)
 
-if (git('status', '--porcelain')) fail('working tree is not clean')
+if (git('status', '--porcelain', '--untracked-files=no')) fail('working tree has uncommitted changes')
 if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'main') fail('release from main')
 git('fetch', 'origin', 'main')
 if (git('rev-list', '--count', 'HEAD..origin/main') !== '0') fail('main is behind origin; pull first')
