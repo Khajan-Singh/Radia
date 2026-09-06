@@ -20,9 +20,33 @@ const changelogPath = join(root, 'CHANGELOG.md')
 const bump = process.argv[2] ?? 'patch'
 if (!['major', 'minor', 'patch'].includes(bump)) fail(`usage: npm run release [-- major|minor|patch] (got "${bump}")`)
 
-const run = (cmd, ...args) =>
-  execFileSync(cmd, args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', shell: process.platform === 'win32' && cmd === 'npm' }).trim()
-const git = (...args) => run('git', ...args)
+const git = (...args) =>
+  execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8' }).trim()
+
+/**
+ * Bumps the version in package.json and package-lock.json in place. Not
+ * `npm version`: on Windows npm is a .cmd shim that Node 24 refuses to spawn
+ * without a shell, and a shell is exactly what this script avoids.
+ */
+function bumpVersion(kind) {
+  const pkgPath = join(root, 'package.json')
+  const lockPath = join(root, 'package-lock.json')
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  const [major, minor, patch] = pkg.version.split('.').map(Number)
+  const next =
+    kind === 'major' ? `${major + 1}.0.0` : kind === 'minor' ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`
+  const setVersion = (path, edit) => {
+    const json = JSON.parse(readFileSync(path, 'utf8'))
+    edit(json)
+    writeFileSync(path, JSON.stringify(json, null, 2) + '\n')
+  }
+  setVersion(pkgPath, (json) => { json.version = next })
+  setVersion(lockPath, (json) => {
+    json.version = next
+    if (json.packages?.['']) json.packages[''].version = next
+  })
+  return next
+}
 
 if (git('status', '--porcelain', '--untracked-files=no')) fail('working tree has uncommitted changes')
 if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'main') fail('release from main')
@@ -34,7 +58,7 @@ const unreleased = /^## \[Unreleased\]\s*\n([\s\S]*?)(?=^## \[|(?![\s\S]))/m.exe
 if (!unreleased) fail('CHANGELOG.md has no "## [Unreleased]" section')
 if (!unreleased[1].trim()) fail('the Unreleased section is empty; write the notes first')
 
-const version = run('npm', 'version', bump, '--no-git-tag-version').replace(/^v/, '')
+const version = bumpVersion(bump)
 const date = new Date().toISOString().slice(0, 10)
 const rolled = changelog.replace(
   /^## \[Unreleased\]\s*\n/m,
