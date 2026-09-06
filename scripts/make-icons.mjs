@@ -91,6 +91,8 @@ const BODY = [0x0c / 255, 0x0c / 255, 0x0e / 255]
 const HALF = 13.2      // leaves ~9% padding, which Windows expects around an icon
 const RADIUS = 7.5
 const RIM = 3.0        // core band depth
+const HUE_A = 275      // violet
+const HUE_B = 165      // cyan-green
 
 const mark = (x, y, size) => {
   const s = size / 32
@@ -116,8 +118,10 @@ const mark = (x, y, size) => {
   // A two-stop gradient rather than a full hue sweep: closer to what an album
   // cover actually yields, and it survives 16px where a rainbow turns to mud.
   // cos() is exactly periodic across the wrap at 1 -> 0, so there is no seam.
+  // Violet at the top-right sweeping to cyan at the bottom-left ("aurora"):
+  // the earlier magenta-to-yellow washed out against light wallpapers.
   const sweep = 0.5 + 0.5 * Math.cos(along * Math.PI * 2)
-  const hue = 330 + 110 * sweep
+  const hue = HUE_A + (HUE_B - HUE_A) * sweep
   const gain = 0.8 + 0.2 * (0.5 + 0.5 * Math.cos(along * Math.PI * 2 - 1.0))
   const lum = clamp01((core + spill) * 1.35 * gain)
 

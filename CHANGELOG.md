@@ -10,6 +10,15 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+- New app icon colours: the rim sweeps from violet to cyan instead of magenta
+  to yellow, which held up poorly on light wallpapers.
+
+### Fixed
+- The taskbar, Start menu and desktop shortcut showed Electron's default icon
+  instead of Radia's. The icon is now stamped into the executable, and the app
+  identifies itself to Windows so its window groups under the pinned shortcut.
+
 ## [0.2.1] - 2026-09-06
 
 ### Changed
