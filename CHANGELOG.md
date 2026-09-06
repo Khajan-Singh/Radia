@@ -10,6 +10,8 @@ release notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-06
+
 ### Added
 - Speed slider in the Appearance panel, scaling how fast Sync and Snake move.
 - Automatic updates: Radia checks GitHub Releases in the background and offers
