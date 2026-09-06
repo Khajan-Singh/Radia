@@ -1,0 +1,32 @@
+name: Build check
+
+# Packages the installer exactly as the Release workflow does, without
+# publishing anything, and keeps it as a workflow artifact for inspection.
+# Runs on pull requests and on demand (gh workflow run build.yml).
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build; npm run build:bridge; npx electron-builder --win nsis --publish never --config.win.signAndEditExecutable=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: |
+            dist/Radia-*-setup.exe
+            dist/win-unpacked/Radia.exe
+          retention-days: 7

@@ -402,6 +402,11 @@ function registerIpc(): void {
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
+// Must match build.appId in package.json: the NSIS shortcuts carry this id,
+// and Windows only groups the running window under the pinned shortcut (and
+// shows the shortcut's icon) when the process announces the same one.
+app.setAppUserModelId('xyz.radia.windows')
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {

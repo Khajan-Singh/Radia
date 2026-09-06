@@ -28,10 +28,12 @@ pushes. The tag runs `.github/workflows/release.yml`, which builds the NSIS
 installer on `windows-latest` and publishes the release with the changelog
 section as notes. Auto-update is `electron-updater` against GitHub Releases
 (`src/main/updater.ts`); it needs `latest.yml` and the blockmap on the release
-and only runs when packaged. Installers are not code-signed
-(`signAndEditExecutable: false`); if signing is ever added, it changes the
-installer's hash, so `latest.yml` and the blockmap must be regenerated after
-signing or the updater rejects the download.
+and only runs when packaged. Installers are not code-signed. `signAndEditExecutable: false` in package.json
+is for local builds only (electron-builder's winCodeSign bundle has macOS
+symlinks that fail to extract without Developer Mode); CI overrides it to true
+so rcedit stamps the icon into `Radia.exe`. If signing is ever added, it
+changes the installer's hash, so `latest.yml` and the blockmap must be
+regenerated after signing or the updater rejects the download.
 
 There are no automated tests. This is a real-time, visual project; verification is
 running the app and the probe scripts below.

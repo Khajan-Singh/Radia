@@ -30,7 +30,11 @@ jobs:
           $v = (Get-Content package.json | ConvertFrom-Json).version
           if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME does not match package.json version $v" }
 
-      - run: npm run build; npm run build:bridge; npx electron-builder --win nsis --publish never
+      # signAndEditExecutable is off in package.json because electron-builder's
+      # winCodeSign bundle cannot be extracted on a machine without Developer
+      # Mode (macOS symlinks inside it). The runner can, and without this step
+      # Radia.exe keeps Electron's atom icon on shortcuts and the taskbar.
+      - run: npm run build; npm run build:bridge; npx electron-builder --win nsis --publish never --config.win.signAndEditExecutable=true
 
       - name: Release notes from the changelog
         run: node scripts/release-notes.mjs "$env:GITHUB_REF_NAME" | Out-File -Encoding utf8 notes.md
