@@ -29,10 +29,16 @@ Download `Radia-<version>-setup.exe` from the
 frosted compact card needs Windows 11 22H2 or newer; everything else works
 without it).
 
-The installer is not code-signed, so SmartScreen will warn on first run.
-Choose **More info → Run anyway**.
+Installers are code-signed through [SignPath Foundation](https://signpath.org)
+(see [Code signing policy](#code-signing-policy)). SmartScreen may still warn
+while a certificate is new; choose **More info → Run anyway**.
 
 Radia lives in the tray. Closing the player window quits the app.
+
+Radia keeps itself up to date: it checks GitHub Releases shortly after launch
+and every few hours, downloads a new version in the background, and offers
+**Restart to update** in the player and the tray menu. If you ignore it, the
+update installs the next time Radia quits.
 
 ## Good to know
 
@@ -60,6 +66,30 @@ Electron spawns it and talks to it over stdio.
 See `CLAUDE.md` for the architecture, the probe scripts and the project's
 hard-won constraints.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate
+by [SignPath Foundation](https://signpath.org).
+
+Release installers are built by the [Release workflow](.github/workflows/release.yml)
+on GitHub-hosted runners from a tagged commit of this repository, and signed
+from that workflow's artifacts. No binary is signed that was not built there.
+
+**Team**
+
+- Author, Reviewer and Approver: Khajan Singh ([@Khajan-Singh](https://github.com/Khajan-Singh))
+
+Contributions from anyone else are reviewed by a Reviewer before merging, and
+every signing request is approved by an Approver.
+
+**Privacy**
+
+Radia makes exactly these network requests, and no others: it sends the
+current track's title, artist and album to the iTunes Search API and to Deezer
+to find higher-resolution cover art, and it contacts GitHub Releases to check
+for updates. It collects no telemetry, needs no account, and stores nothing
+outside your own user profile.
+
 ## License
 
-MIT
+[MIT](LICENSE)

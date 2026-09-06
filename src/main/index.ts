@@ -34,6 +34,7 @@ import {
   syncPlayerBorder
 } from './windows'
 import { upgradeArtwork } from './artwork'
+import { getUpdateState, installUpdate, startUpdater } from './updater'
 
 // ─── Live state ──────────────────────────────────────────────────────────────
 
@@ -62,7 +63,8 @@ function initialState(): InitialState {
     artwork,
     palette,
     displays: displays(),
-    bridge
+    bridge,
+    update: getUpdateState()
   }
 }
 
@@ -207,6 +209,7 @@ function trayIcon(): Electron.NativeImage {
 function updateTrayMenu(): void {
   if (!tray) return
   const settings = getSettings()
+  const update = getUpdateState()
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: track ? `${track.title} - ${track.artist}` : 'Nothing playing', enabled: false },
@@ -239,6 +242,9 @@ function updateTrayMenu(): void {
         label: bridge.running ? 'Helper: running' : 'Helper: not running',
         enabled: false
       },
+      ...(update.status === 'ready'
+        ? [{ label: `Restart to update to ${update.version}`, click: () => installUpdate() }]
+        : []),
       { type: 'separator' },
       { label: 'Quit Radia', click: () => quit() }
     ])
@@ -362,6 +368,7 @@ function registerIpc(): void {
   })
   ipcMain.handle(CH.openPrefs, () => { createAppearance() })
   ipcMain.handle(CH.toggleRim, () => { setEnabled(!getSettings().enabled) })
+  ipcMain.handle(CH.installUpdate, () => { installUpdate() })
   ipcMain.on(CH.playerModeReady, (_e, mode: PlayerMode) => {
     onPlayerModeReady(mode)
   })
@@ -432,6 +439,11 @@ if (!app.requestSingleInstanceLock()) {
     screen.on('display-metrics-changed', onDisplayChange)
 
     app.on('activate', () => createPlayer())
+
+    startUpdater((update) => {
+      broadcast(CH.update, update)
+      updateTrayMenu()
+    })
   })
 
   // Nothing left to show means nothing left to run.

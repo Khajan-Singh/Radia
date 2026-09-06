@@ -22,9 +22,18 @@ The .NET 9 SDK lives at `C:\Program Files\dotnet` but is not on `PATH` in a fres
 shell: `$env:Path = "C:\Program Files\dotnet;$env:Path"` first. A running
 `RadiaBridge.exe` locks the published exe, so kill it before `build:bridge`.
 
-Releases: pushing a `v*` tag runs `.github/workflows/release.yml`, which packages
-on `windows-latest` and attaches `dist/Radia-*-setup.exe` to a GitHub release.
-Exe signing is disabled (`signAndEditExecutable: false`).
+Releases: `npm run release [-- minor|major]` rolls `CHANGELOG.md`'s Unreleased
+section under the new version, bumps `package.json`, commits, tags `v*` and
+pushes. The tag runs `.github/workflows/release.yml`: build, package the app
+directory, sign `Radia.exe` + `RadiaBridge.exe` via SignPath, build the NSIS
+installer from that directory, sign the installer, re-derive `latest.yml` and
+the blockmap (`scripts/finalize-release.mjs` - signing changes the hash), then
+publish the release with the changelog section as notes. Every signing step is
+skipped when the `SIGNPATH_*` secrets are absent. Auto-update is
+`electron-updater` against GitHub Releases (`src/main/updater.ts`); it needs
+`latest.yml` and the blockmap on the release, and only runs when packaged.
+`signAndEditExecutable: false` means rcedit does not embed the icon/version
+info in `Radia.exe`; leave it unless you also verify rcedit works in CI.
 
 There are no automated tests. This is a real-time, visual project; verification is
 running the app and the probe scripts below.

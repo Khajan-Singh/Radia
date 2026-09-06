@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "build:bridge": "dotnet publish native/RadiaBridge/RadiaBridge.csproj -c Release -r win-x64 --self-contained true -o resources/bridge",
     "start": "electron-vite preview",
-    "package": "npm run build && npm run build:bridge && electron-builder --win nsis",
+    "package": "npm run build && npm run build:bridge && electron-builder --win nsis --publish never",
+    "release": "node scripts/release.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
@@ -25,6 +26,7 @@
     "vite": "^5.4.11"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -35,6 +37,13 @@
   "build": {
     "appId": "xyz.radia.windows",
     "productName": "Radia",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Khajan-Singh",
+        "repo": "Radia"
+      }
+    ],
     "directories": {
       "output": "dist",
       "buildResources": "resources"

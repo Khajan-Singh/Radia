@@ -11,7 +11,8 @@ import {
   type Settings,
   type PanelSection,
   type Track,
-  type TransportCommand
+  type TransportCommand,
+  type UpdateState
 } from '../shared/types'
 
 type Unsubscribe = () => void
@@ -33,6 +34,7 @@ const api = {
   openAppearance: (section?: PanelSection): Promise<void> =>
     ipcRenderer.invoke(CH.openAppearance, section),
   toggleRim: (): Promise<void> => ipcRenderer.invoke(CH.toggleRim),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke(CH.installUpdate),
   setPlayerMode: (mode: PlayerMode): Promise<void> => ipcRenderer.invoke(CH.setPlayerMode, mode),
   windowAction: (action: 'minimize' | 'maximize' | 'close'): Promise<void> =>
     ipcRenderer.invoke(CH.windowAction, action),
@@ -47,7 +49,8 @@ const api = {
   onPalette: (h: (p: Palette) => void): Unsubscribe => on(CH.palette, h),
   onDisplays: (h: (d: DisplayInfo[]) => void): Unsubscribe => on(CH.displays, h),
   onBridge: (h: (b: BridgeStatus) => void): Unsubscribe => on(CH.bridge, h),
-  onRevealSection: (h: (s: PanelSection) => void): Unsubscribe => on(CH.revealSection, h)
+  onRevealSection: (h: (s: PanelSection) => void): Unsubscribe => on(CH.revealSection, h),
+  onUpdate: (h: (u: UpdateState) => void): Unsubscribe => on(CH.update, h)
 }
 
 export type RadiaApi = typeof api

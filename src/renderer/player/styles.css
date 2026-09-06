@@ -331,6 +331,13 @@ button {
   height: 18px;
 }
 
+/* A downloaded update, tinted like the selected animation chip so it reads as
+   news rather than one more tool. */
+.tool.update {
+  color: var(--text);
+  background: color-mix(in oklab, var(--primary) 30%, var(--glass-fill));
+}
+
 .tool:hover {
   color: var(--text);
   transform: translateY(-1px);

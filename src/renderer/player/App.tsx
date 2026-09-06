@@ -294,6 +294,15 @@ export default function App(): JSX.Element {
         <button className="tool" onClick={() => api.setPlayerMode('compact')} title="Mini player">
           <CardIcon />
         </button>
+        {state.update.status === 'ready' && (
+          <button
+            className="tool wide update"
+            onClick={() => api.installUpdate()}
+            title={`Radia ${state.update.version} is downloaded. Restart to install it; otherwise it installs on quit.`}
+          >
+            Restart to update
+          </button>
+        )}
       </footer>
 
       {!state.bridge.running && state.ready && (

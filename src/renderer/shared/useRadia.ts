@@ -9,7 +9,8 @@ import {
   type DisplayInfo,
   type Palette,
   type Settings,
-  type Track
+  type Track,
+  type UpdateState
 } from '../../shared/types'
 
 export interface RadiaState {
@@ -20,6 +21,7 @@ export interface RadiaState {
   palette: Palette
   displays: DisplayInfo[]
   bridge: BridgeStatus
+  update: UpdateState
 }
 
 const INITIAL: RadiaState = {
@@ -30,6 +32,7 @@ const INITIAL: RadiaState = {
   palette: DEFAULT_PALETTE,
   displays: [],
   bridge: { running: false, media: false, audio: false, lastError: null },
+  update: { status: 'idle' }
 }
 
 /** Subscribes to every broadcast channel and mirrors main's state locally. */
@@ -51,6 +54,7 @@ export function useRadia(): RadiaState {
       api.onPalette((palette) => setState((s) => ({ ...s, palette }))),
       api.onDisplays((displays) => setState((s) => ({ ...s, displays }))),
       api.onBridge((bridge) => setState((s) => ({ ...s, bridge }))),
+      api.onUpdate((update) => setState((s) => ({ ...s, update })))
     ]
 
     return () => {

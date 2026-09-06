@@ -219,6 +219,16 @@ export type TransportCommand =
    *  currently displayed position. */
   | { kind: 'seek'; positionMs: number }
 
+// ─── Updates ─────────────────────────────────────────────────────────────────
+
+/** What the background updater is doing. `ready` is the only state with UI. */
+export type UpdateState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'downloading'; version: string; percent: number }
+  | { status: 'ready'; version: string }
+  | { status: 'error'; message: string }
+
 // ─── IPC channels ────────────────────────────────────────────────────────────
 
 export const CH = {
@@ -231,6 +241,7 @@ export const CH = {
   displays: 'radia:displays',
   bridge: 'radia:bridge',
   revealSection: 'radia:revealSection',
+  update: 'radia:update',
   // renderer -> main (invoke)
   getState: 'radia:getState',
   patchSettings: 'radia:patchSettings',
@@ -238,6 +249,7 @@ export const CH = {
   openAppearance: 'radia:openAppearance',
   openPrefs: 'radia:openPrefs',
   toggleRim: 'radia:toggleRim',
+  installUpdate: 'radia:installUpdate',
   setPlayerMode: 'radia:setPlayerMode',
   windowAction: 'radia:windowAction',
   /** Renderer -> main: resize the sender's window so its content fits exactly. */
@@ -255,4 +267,5 @@ export interface InitialState {
   palette: Palette
   displays: DisplayInfo[]
   bridge: BridgeStatus
+  update: UpdateState
 }

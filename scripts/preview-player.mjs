@@ -64,6 +64,9 @@ const artwork = {
 }
 
 const state = {
+  // RADIA_PREVIEW_UPDATE=1 shows the "Restart to update" pill, which only
+  // appears in a packaged app otherwise.
+  update: process.env.RADIA_PREVIEW_UPDATE ? { status: 'ready', version: '9.9.9' } : { status: 'idle' },
   settings: {
     version: 4,
     enabled: true,
@@ -129,11 +132,12 @@ require('electron').contextBridge.exposeInMainWorld('radia', {
   windowAction: () => Promise.resolve(),
   fitWindow: () => Promise.resolve(),
   playerModeReady: () => undefined,
+  installUpdate: () => Promise.resolve(),
   spotifyConnect: () => Promise.resolve(state.spotify),
   spotifyDisconnect: () => Promise.resolve(state.spotify),
   onSettings: noop, onTrack: noop, onArtwork: noop, onAudio: noop,
   onPalette: noop, onDisplays: noop, onBridge: noop, onSpotify: noop,
-  onRevealSection: noop
+  onRevealSection: noop, onUpdate: noop
 })
 `
 const stubPath = join(app.getPath('temp'), 'radia-preview-preload.js')

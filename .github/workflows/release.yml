@@ -1,5 +1,18 @@
 name: Release
 
+# Pushing a v* tag (normally via `npm run release`) builds the installer,
+# signs it through SignPath when the two secrets are configured, and publishes
+# a GitHub release with the changelog section as its notes.
+#
+# Signing is two rounds because SignPath signs GitHub workflow artifacts, not
+# files inside electron-builder's pipeline: first the app's own executables
+# from the unpacked directory, then the installer built from that directory.
+# The signed installer no longer matches the update metadata electron-builder
+# wrote, so scripts/finalize-release.mjs re-derives latest.yml and the
+# blockmap. Without the secrets every signing step is skipped and the release
+# is published unsigned - the app still updates, it just does not verify the
+# installer's publisher.
+
 on:
   push:
     tags: ['v*']
@@ -9,6 +22,9 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORG_ID: ${{ secrets.SIGNPATH_ORG_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,7 +35,92 @@ jobs:
         with:
           dotnet-version: 9.0.x
       - run: npm ci
-      - run: npm run build; npm run build:bridge; npx electron-builder --win nsis --publish never
-      - run: gh release create "$env:GITHUB_REF_NAME" (Get-Item dist/Radia-*-setup.exe).FullName --generate-notes
+
+      - name: Check the tag matches package.json
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "tag $env:GITHUB_REF_NAME does not match package.json version $v" }
+
+      - run: npm run build; npm run build:bridge
+
+      # A full NSIS build rather than --dir: electron-builder only writes
+      # resources/app-update.yml (what electron-updater reads) when the NSIS
+      # target is part of the run, and a --prepackaged build never adds it.
+      # This installer is unsigned and thrown away; round 2 rebuilds it.
+      - name: Package the app (unsigned)
+        run: npx electron-builder --win nsis --publish never
+
+      # ── Round 1: the executables inside the app ──────────────────────────
+      - name: Upload app binaries for signing
+        if: env.SIGNPATH_API_TOKEN != ''
+        id: upload-binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-binaries
+          path: |
+            dist/win-unpacked/Radia.exe
+            dist/win-unpacked/resources/bridge/RadiaBridge.exe
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Sign app binaries (SignPath)
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG_ID }}
+          project-slug: radia
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app-binaries
+          github-artifact-id: ${{ steps.upload-binaries.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: dist/win-unpacked
+
+      # ── Round 2: the installer ───────────────────────────────────────────
+      - name: Build the installer
+        run: |
+          $args = @('electron-builder', '--win', 'nsis', '--prepackaged', 'dist/win-unpacked', '--publish', 'never')
+          # With a publisher name baked in, electron-updater refuses a downloaded
+          # installer that is not signed by it - only set it when we do sign.
+          if ($env:SIGNPATH_API_TOKEN) { $args += '--config.win.publisherName=SignPath Foundation' }
+          npx @args
+
+      - name: Upload installer for signing
+        if: env.SIGNPATH_API_TOKEN != ''
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: dist/Radia-*-setup.exe
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Sign installer (SignPath)
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG_ID }}
+          project-slug: radia
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: dist
+
+      - name: Refresh update metadata for the signed installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        run: node scripts/finalize-release.mjs
+
+      # ── Publish ──────────────────────────────────────────────────────────
+      - name: Release notes from the changelog
+        run: node scripts/release-notes.mjs "$env:GITHUB_REF_NAME" | Out-File -Encoding utf8 notes.md
+
+      - name: Create the GitHub release
+        run: |
+          $exe = (Get-Item dist/Radia-*-setup.exe).FullName
+          gh release create "$env:GITHUB_REF_NAME" $exe "$exe.blockmap" dist/latest.yml --title "Radia $($env:GITHUB_REF_NAME.TrimStart('v'))" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}
