@@ -140,6 +140,12 @@ export default function App(): JSX.Element {
           onChange={(v) => patch({ thickness: v })}
         />
 
+        <Slider
+          label="Speed"
+          value={draft.speed}
+          onChange={(v) => patch({ speed: v })}
+        />
+
         <Row label="Override album color" id="section-color">
           <Toggle
             checked={overriding}

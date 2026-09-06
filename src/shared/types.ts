@@ -20,6 +20,7 @@ export const ANIMATIONS: readonly { value: AnimationMode; label: string }[] = [
   { value: 'static', label: 'Static' }
 ]
 
+
 /**
  * How the now-playing view presents itself.
  * - `window`     ordinary resizable window
@@ -43,6 +44,13 @@ export interface Settings {
   enabled: boolean
   gradientMode: GradientMode
   animation: AnimationMode
+  /**
+   * Pace of Sync and Snake motion, 0-1 with 0.5 the reference pace. It is a
+   * multiplier on every rate the beat driver moves things at (wave travel,
+   * snake glide and beat surges) and nothing else, so a slow rim still lands
+   * on the beat. See speedFactor().
+   */
+  speed: number
   /** Hug the work area instead of full display bounds, so the taskbar stays clear. */
   taskbarSafe: boolean
   /**
@@ -64,14 +72,15 @@ export interface Settings {
   playerMode: PlayerMode
 }
 
-/** Informational only: reconcile() migrates by sniffing values, not by version. v4 dropped `glow`, v5 dropped `audio` (detection is self-tuning). */
-export const SETTINGS_VERSION = 5
+/** Informational only: reconcile() migrates by sniffing values, not by version. v4 dropped `glow`, v5 dropped `audio` (detection is self-tuning), v6 added `speed`. */
+export const SETTINGS_VERSION = 6
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   enabled: true,
   gradientMode: 2,
   animation: 'music',
+  speed: 0.5,
   taskbarSafe: false,
   thickness: 0.6,
   overrideAlbumColor: false,
@@ -82,6 +91,11 @@ export const DEFAULT_SETTINGS: Settings = {
   secondaryWeight: 0.4,
   displayId: null,
   playerMode: 'window'
+}
+
+/** Speed slider (0-1) -> motion multiplier, 0.5x at the bottom, 1x in the middle, 2x at the top. */
+export function speedFactor(speed: number): number {
+  return Math.pow(4, Math.min(1, Math.max(0, speed)) - 0.5)
 }
 
 // ─── Now playing ─────────────────────────────────────────────────────────────
@@ -128,14 +142,26 @@ export interface AudioFrame {
   treble: number
   /** Raw spectral flux, for debugging the beat detector. */
   flux: number
-  /** True on the frame an onset was detected. */
+  /** True on the frame the flux detector fired. Raw evidence; the rim moves on `beat`. */
   onset: boolean
   /** Estimated tempo, or 0 when unknown. */
   bpm: number
+  /**
+   * True on a tempo-locked beat: an onset that landed on the predicted grid,
+   * or a softer predicted fill when the expected onset never came.
+   */
+  beat: boolean
+  /** How hard the beat hit, 0-1. Predicted beats are at most 0.5. */
+  beatStrength: number
+  /** Progress through the current beat, 0-1; 0 while there is no tempo lock. */
+  beatPhase: number
+  /** How sure the tracker is of its grid, 0-1. */
+  beatConfidence: number
 }
 
 export const SILENT_FRAME: AudioFrame = {
-  ts: 0, rms: 0, sub: 0, bass: 0, mid: 0, treble: 0, flux: 0, onset: false, bpm: 0
+  ts: 0, rms: 0, sub: 0, bass: 0, mid: 0, treble: 0, flux: 0, onset: false, bpm: 0,
+  beat: false, beatStrength: 0, beatPhase: 0, beatConfidence: 0
 }
 
 // ─── Palette ─────────────────────────────────────────────────────────────────

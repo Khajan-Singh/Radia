@@ -88,6 +88,14 @@ public sealed class AudioPayload
     public required double mid { get; init; }
     public required double treble { get; init; }
     public required double flux { get; init; }
+    /// <summary>Raw onset evidence from the flux detector.</summary>
     public required bool onset { get; init; }
     public required double bpm { get; init; }
+    /// <summary>Tempo-locked beat: an onset on the grid, or a predicted fill when one was missed.</summary>
+    public required bool beat { get; init; }
+    /// <summary>How hard the beat hit, 0-1. Predicted beats are softer than heard ones.</summary>
+    public required double beatStrength { get; init; }
+    /// <summary>Progress through the current beat, 0-1. 0 when there is no tempo lock.</summary>
+    public required double beatPhase { get; init; }
+    public required double beatConfidence { get; init; }
 }

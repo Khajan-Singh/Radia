@@ -69,6 +69,7 @@ const state = {
     enabled: true,
     gradientMode: 2,
     animation: 'music',
+    speed: 0.5,
     taskbarSafe: false,
     thickness: 0.6,
     overrideAlbumColor: false,

@@ -502,7 +502,15 @@ function DesignDock({ animation, idle }: { animation: AnimationMode; idle: boole
       <button className="tool" onClick={() => api.openAppearance('color')} aria-label="Design">
         <PaletteIcon />
       </button>
-      <AnimationPicker animation={animation} open={open} />
+      <div className="anim-slot">
+        <SegmentedPicker
+          label="Animation"
+          value={animation}
+          options={ANIMATIONS}
+          open={open}
+          onChoose={(value) => void api.patchSettings({ animation: value })}
+        />
+      </div>
     </div>
   )
 }
@@ -510,9 +518,9 @@ function DesignDock({ animation, idle }: { animation: AnimationMode; idle: boole
 type ChipGeom = { x: number; w: number }
 
 /**
- * The three animation modes as a segmented control: an album-tinted chip sits
- * on the selected mode and glides when the selection changes; hovering an
- * option only brightens its label.
+ * A segmented control: an album-tinted chip sits on the selected option and
+ * glides when the selection changes; hovering an option only brightens its
+ * label. Generic so the dock can grow another one without a copy.
  *
  * Positions are measured because the labels are not equal widths. The pill's
  * padding is constant in both states so an offset measured while collapsed is
@@ -522,27 +530,33 @@ type ChipGeom = { x: number; w: number }
  * never hears its own change echoed back; the choice is held locally until the
  * next broadcast (from anywhere) supersedes it.
  */
-function AnimationPicker({
-  animation,
-  open
+function SegmentedPicker<T extends string>({
+  label,
+  value,
+  options: choices,
+  open,
+  onChoose
 }: {
-  animation: AnimationMode
+  label: string
+  value: T
+  options: readonly { value: T; label: string }[]
   open: boolean
+  onChoose: (value: T) => void
 }): JSX.Element {
-  const [current, setCurrent] = useState(animation)
-  useEffect(() => setCurrent(animation), [animation])
+  const [current, setCurrent] = useState(value)
+  useEffect(() => setCurrent(value), [value])
 
   const pillRef = useRef<HTMLDivElement>(null)
-  const options = useRef(new Map<AnimationMode, HTMLButtonElement>())
-  const [geom, setGeom] = useState<Partial<Record<AnimationMode, ChipGeom>>>({})
+  const options = useRef(new Map<T, HTMLButtonElement>())
+  const [geom, setGeom] = useState<Partial<Record<T, ChipGeom>>>({})
 
   useLayoutEffect(() => {
     const pill = pillRef.current
     if (!pill) return
     const measure = (): void => {
-      const next: Partial<Record<AnimationMode, ChipGeom>> = {}
-      options.current.forEach((el, mode) => {
-        next[mode] = { x: el.offsetLeft, w: el.offsetWidth }
+      const next: Partial<Record<T, ChipGeom>> = {}
+      options.current.forEach((el, key) => {
+        next[key] = { x: el.offsetLeft, w: el.offsetWidth }
       })
       setGeom(next)
     }
@@ -554,15 +568,15 @@ function AnimationPicker({
     return () => observer.disconnect()
   }, [open])
 
-  const choose = (value: AnimationMode): void => {
-    setCurrent(value)
-    void api.patchSettings({ animation: value })
+  const choose = (next: T): void => {
+    setCurrent(next)
+    onChoose(next)
   }
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
-    const order = ANIMATIONS.map((a) => a.value)
+    const order = choices.map((c) => c.value)
     const i = order.indexOf(current)
-    let next: AnimationMode | null = null
+    let next: T | null = null
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = order[(i + 1) % order.length]
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
       next = order[(i - 1 + order.length) % order.length]
@@ -578,38 +592,30 @@ function AnimationPicker({
   const chipStyle = { '--x': `${g?.x ?? 0}px`, '--w': `${g?.w ?? 0}px` } as React.CSSProperties
 
   return (
-    <div className="anim-slot">
-      <div
-        className="anim-pill"
-        role="radiogroup"
-        aria-label="Animation"
-        ref={pillRef}
-        onKeyDown={onKeyDown}
-      >
-        <span className="anim-chip" aria-hidden style={chipStyle} />
-        {ANIMATIONS.map(({ value, label }) => {
-          const selected = current === value
-          return (
-            <button
-              key={value}
-              ref={(el) => {
-                if (el) options.current.set(value, el)
-                else options.current.delete(value)
-              }}
-              className={`anim-option ${selected ? 'selected' : ''}`}
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected ? 0 : -1}
-              // No focus on mouse click: focus is for the keyboard, and a
-              // focused option must not hold the pill open.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(value)}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
+    <div className="anim-pill" role="radiogroup" aria-label={label} ref={pillRef} onKeyDown={onKeyDown}>
+      <span className="anim-chip" aria-hidden style={chipStyle} />
+      {choices.map(({ value: option, label: text }) => {
+        const selected = current === option
+        return (
+          <button
+            key={option}
+            ref={(el) => {
+              if (el) options.current.set(option, el)
+              else options.current.delete(option)
+            }}
+            className={`anim-option ${selected ? 'selected' : ''}`}
+            role="radio"
+            aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
+            // No focus on mouse click: focus is for the keyboard, and a
+            // focused option must not hold the pill open.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => choose(option)}
+          >
+            {text}
+          </button>
+        )
+      })}
     </div>
   )
 }

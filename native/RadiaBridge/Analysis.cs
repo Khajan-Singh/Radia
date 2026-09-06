@@ -36,9 +36,31 @@ public sealed class Analysis
     private double _clock;
     private double _bpm;
 
+    // Beat tracker: a phase-locked loop on top of the onsets. Onsets are the
+    // evidence; the beat is the tempo-locked prediction the rim moves on.
+    private double _nextBeatTime = -1;
+    private double _beatConfidence;
+    private const double BeatWindow = 0.25;       // +/- share of a period an onset may miss by
+    private const double PllGain = 0.35;          // how much of the timing error is corrected per beat
+    private const double PeriodGain = 0.08;       // how much of it the tempo absorbs (second-order PLL)
+    private const double TempoAgreement = 0.08;   // histogram tempos further than this from a locked one are ignored
+    private const double ConfidenceGain = 0.25;
+    private const double ConfidenceLoss = 0.15;
+    private const double RejectLoss = 0.1;        // an off-grid onset is mild evidence the grid is wrong
+    private const double LockedConfidence = 0.4;  // below this the next onset re-seeds the phase
+    // Strength scale: a heard beat is 0.6-1.0 by how far it cleared the
+    // threshold, a predicted fill 0.35-0.5 by confidence. Measuring heard beats
+    // from zero made most of them ~0.1 and the rim barely moved on them.
+    private const double HeardFloor = 0.6;
+    private const double PredictedFloor = 0.35;
+    private const double PredictedCeiling = 0.5;
+    private const double SilentRms = 0.02;
+
     // Onset threshold: median + MadFactor * MAD of the recent flux. Robust to
     // the onsets themselves inflating the statistics the way a std-dev would.
-    private const double MadFactor = 2.5;
+    // 2.0 rather than 2.5 so quiet beats reach the tracker, which now does the
+    // false-positive filtering the threshold used to have to.
+    private const double MadFactor = 2.0;
     private const double MinMad = 0.02;
     private const double LogGain = 20;                // magnitude scale before log(1+x)
     private const double MidWeight = 0.25;            // 250Hz-2kHz contribution to flux
@@ -115,7 +137,8 @@ public sealed class Analysis
         _mid = Envelope(_mid, BandEnergy(250, 2000), 0.5, 0.07);
         _treble = Envelope(_treble, BandEnergy(2000, 8000), 0.5, 0.07);
 
-        var onset = DetectOnset(flux);
+        var onset = DetectOnset(flux, out var strength);
+        var (beat, beatStrength) = TrackBeat(onset, strength);
         _clock += (double)HopSize / _sampleRate;
 
         return new AudioPayload
@@ -128,8 +151,85 @@ public sealed class Analysis
             treble = Math.Round(_treble, 4),
             flux = Math.Round(flux, 4),
             onset = onset,
-            bpm = Math.Round(_bpm, 1)
+            bpm = Math.Round(_bpm, 1),
+            beat = beat,
+            beatStrength = Math.Round(beatStrength, 4),
+            beatPhase = Math.Round(BeatPhase(), 3),
+            beatConfidence = Math.Round(_beatConfidence, 2)
         };
+    }
+
+    /// <summary>
+    /// Locks a beat clock to the onsets. Raw onsets are uneven: a fill lands
+    /// off the grid, a soft verse drops a kick, a vocal consonant fires the
+    /// detector between beats. Moving the rim on every onset reads as jitter.
+    /// This keeps a predicted next-beat time from the tempo, lets an onset near
+    /// it correct the phase (a PLL), ignores onsets far from it once locked,
+    /// and fills in a softer beat when the expected onset never arrives - so
+    /// motion stays regular through a quiet bar and stops within a few beats
+    /// of the music actually stopping.
+    /// </summary>
+    private (bool beat, double strength) TrackBeat(bool onset, double strength)
+    {
+        if (_bpm <= 0)
+        {
+            // No tempo yet: nothing to predict, pass the evidence straight through.
+            _beatConfidence = 0;
+            _nextBeatTime = -1;
+            return (onset, onset ? strength : 0);
+        }
+
+        var period = 60.0 / _bpm;
+        var locked = _nextBeatTime >= 0 && _beatConfidence >= LockedConfidence;
+
+        if (onset)
+        {
+            var error = _nextBeatTime >= 0 ? _clock - _nextBeatTime : double.PositiveInfinity;
+            if (Math.Abs(error) <= BeatWindow * period)
+            {
+                // On the grid: nudge the clock toward where the beat really
+                // fell, and let the tempo absorb a little of the error too, so
+                // a lock that is consistently early or late drifts into tune
+                // instead of correcting the same way every beat.
+                period += PeriodGain * error;
+                _bpm = Math.Clamp(60.0 / period, 60, 200);
+                _nextBeatTime += PllGain * error + period;
+                _beatConfidence = Math.Min(1, _beatConfidence + ConfidenceGain);
+                return (true, strength);
+            }
+            if (!locked)
+            {
+                // Not locked: adopt this onset as the downbeat and start predicting from it.
+                _nextBeatTime = _clock + period;
+                _beatConfidence = Math.Min(1, _beatConfidence + ConfidenceGain);
+                return (true, strength);
+            }
+            // Locked and off the grid: evidence, not a beat. Syncopation costs
+            // a little confidence; a grid that is simply wrong rejects most
+            // onsets, bleeds out within a few bars, and gets re-seeded.
+            _beatConfidence = Math.Max(0, _beatConfidence - RejectLoss);
+            return (false, 0);
+        }
+
+        // Expected a beat and none came. While the music is still audible,
+        // fill it in softly and lose some confidence; enough misses in a row
+        // unlock the tracker so the next real onset re-seeds it.
+        if (locked && _clock >= _nextBeatTime + BeatWindow * period)
+        {
+            _nextBeatTime += period;
+            _beatConfidence = Math.Max(0, _beatConfidence - ConfidenceLoss);
+            if (_rms > SilentRms) return (true, PredictedFloor + (PredictedCeiling - PredictedFloor) * _beatConfidence);
+        }
+
+        return (false, 0);
+    }
+
+    /// <summary>Progress through the current beat, 0 just after one and rising to 1 at the next.</summary>
+    private double BeatPhase()
+    {
+        if (_bpm <= 0 || _nextBeatTime < 0 || _beatConfidence < LockedConfidence) return 0;
+        var period = 60.0 / _bpm;
+        return Math.Clamp(1 - (_nextBeatTime - _clock) / period, 0, 1);
     }
 
     /// <summary>Mean magnitude across a frequency range, compressed into 0-1.</summary>
@@ -164,8 +264,9 @@ public sealed class Analysis
     /// cannot do that, and a mean/std-dev one is dragged up by the very spikes
     /// it is meant to find.
     /// </summary>
-    private bool DetectOnset(double flux)
+    private bool DetectOnset(double flux, out double strength)
     {
+        strength = 0;
         var previousFlux = _previousFlux;
         _previousFlux = flux;
 
@@ -188,8 +289,9 @@ public sealed class Analysis
 
         // Rising edge only: the hop after a transient is usually still above
         // the threshold, and without this it fired again on the way down.
-        var isOnset = flux > median + MadFactor * mad
-                   && flux > 1.5 * median
+        var threshold = median + MadFactor * mad;
+        var isOnset = flux > threshold
+                   && flux > 1.3 * median
                    && flux > previousFlux;
 
         // Refractory period scaled to the tempo - half a beat, clamped so an
@@ -200,9 +302,12 @@ public sealed class Analysis
 
         if (isOnset)
         {
+            // How far clear of the noise floor the hit was: a kick that doubles
+            // the threshold is a full-strength beat, a marginal one is HeardFloor.
+            strength = HeardFloor + (1 - HeardFloor) * Math.Clamp((flux - threshold) / threshold, 0, 1);
             _lastOnsetTime = _clock;
             _onsetTimes.Add(_clock);
-            if (_onsetTimes.Count > 48) _onsetTimes.RemoveAt(0);
+            if (_onsetTimes.Count > 32) _onsetTimes.RemoveAt(0);   // ~15-20s: long enough to vote, short enough to forget a tempo change
             EstimateTempo();
         }
 
@@ -211,8 +316,14 @@ public sealed class Analysis
 
     /// <summary>
     /// Histograms inter-onset intervals and takes the strongest musically
-    /// plausible one. Cheaper and steadier than autocorrelating the envelope,
-    /// and the rim only needs tempo as a drift-speed hint.
+    /// plausible one. Cheaper and steadier than autocorrelating the envelope.
+    ///
+    /// Once the beat tracker is locked, the histogram only fine-tunes: a
+    /// syncopated section or a busy fill can flip the histogram's winner to a
+    /// different tempo entirely, and following it there dragged the beat grid
+    /// off a lock that was landing every beat. A locked tracker that is
+    /// actually wrong loses confidence within a few beats, and then the
+    /// histogram is allowed to re-seed it.
     /// </summary>
     private void EstimateTempo()
     {
@@ -239,13 +350,20 @@ public sealed class Analysis
             if (count > bestCount) { bestCount = count; best = bucket; }
         }
 
-        if (bestCount >= 3) _bpm = _bpm == 0 ? best : _bpm * 0.7 + best * 0.3;
+        if (bestCount < 3) return;
+        if (_bpm == 0) { _bpm = best; return; }
+
+        var locked = _nextBeatTime >= 0 && _beatConfidence >= LockedConfidence;
+        if (!locked) { _bpm = best; return; }               // nothing to protect: take the vote as-is
+        if (Math.Abs(best - _bpm) > TempoAgreement * _bpm) return;
+        _bpm = _bpm * 0.7 + best * 0.3;
     }
 
     /// <summary>Decays everything toward rest so the rim eases out of silence.</summary>
     public AudioPayload Idle()
     {
         _rms *= 0.9; _sub *= 0.9; _bass *= 0.9; _mid *= 0.9; _treble *= 0.9;
+        _beatConfidence *= 0.9;
         return new AudioPayload
         {
             ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -256,7 +374,11 @@ public sealed class Analysis
             treble = Math.Round(_treble, 4),
             flux = 0,
             onset = false,
-            bpm = Math.Round(_bpm, 1)
+            bpm = Math.Round(_bpm, 1),
+            beat = false,
+            beatStrength = 0,
+            beatPhase = 0,
+            beatConfidence = Math.Round(_beatConfidence, 2)
         };
     }
 }

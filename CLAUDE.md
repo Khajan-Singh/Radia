@@ -114,7 +114,10 @@ this is the short list.
   prove itself before adoption (~1.2s), because Windows briefly promotes parked
   sessions on every track skip. A playing source is still adopted instantly.
 - Beat detection is self-tuning (median + k·MAD spectral flux, tempo-derived
-  refractory) and has no settings. Frames arrive at ~43–47Hz in bursts.
+  refractory) and has no settings. `onset` is raw evidence; the rim moves on
+  `beat`, which a phase-locked loop in `Analysis.cs` snaps to the tempo grid,
+  ignores when off-grid once locked, and fills in softly when an expected
+  onset never arrives. Frames arrive at ~43–47Hz in bursts.
 
 **Windows / Electron**
 - The overlay needs `backgroundThrottling: false`: it is `focusable: false`, so
@@ -148,6 +151,9 @@ this is the short list.
   dragged slider is not fought by late echoes.
 
 **Renderers**
+- The Snake glides at a tempo-scaled pace and coasts to a stop in silence;
+  beats surge on top through the cascaded `releaseSurge`. Never move it by a
+  step on the beat frame - that is the stop-and-go it replaced.
 - `usePlaybackPosition` keeps its own clock and only *corrects* toward reports;
   a source that never advances (Chrome reports a frozen position) is ignored
   until it really moves. Do not tighten the resync threshold — that brings back
@@ -170,6 +176,9 @@ this is the short list.
   phases are wrapped to `[0,1)` every frame, not accumulated.
 - Beats change brightness and thickness, never hue. Corner radius and halo are
   derived from thickness in `geometry.mjs`; there is no glow setting.
+- `swell()` troughs sit at the bare core and `STATIC_SWELL` is its mean at the
+  resting amplitude; change one and re-derive the other or Static and Sync
+  stop matching. The snake's ripple is in body coordinates (`swell(u)`).
 - The spill must reach zero at finite distance or it tints the whole screen.
 
 ## Known behaviour, not bugs

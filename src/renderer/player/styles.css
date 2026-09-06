@@ -378,6 +378,10 @@ button {
   display: grid;
   grid-template-columns: 0fr;
   margin-left: 0;
+  /* The pill keeps its 8px of padding when collapsed (see .anim-pill), which
+     the 0fr track cannot shrink below; pull it back so the palette button
+     sits at the same 8px pitch as every other tool. */
+  margin-right: -8px;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
@@ -390,6 +394,7 @@ button {
 .design.open .anim-slot {
   grid-template-columns: 1fr;
   margin-left: var(--s-2);
+  margin-right: 0;
   opacity: 1;
   pointer-events: auto;
 }

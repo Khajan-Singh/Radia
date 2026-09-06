@@ -13,6 +13,7 @@ import {
   DEFAULT_PALETTE,
   DEFAULT_SETTINGS,
   SILENT_FRAME,
+  speedFactor,
   type AudioFrame,
   type Palette,
   type Rgb,
@@ -27,11 +28,14 @@ const CROSSFADE_MS = 800
 let settings: Settings = { ...DEFAULT_SETTINGS }
 let audio: AudioFrame = { ...SILENT_FRAME }
 /**
- * Onsets counted since the last frame. Audio frames arrive at ~43Hz in bursts
- * and the overlay only latches the newest one, so an onset flagged on a frame
- * that lands between two rAFs used to be overwritten before anyone saw it.
+ * Strongest beat seen since the last frame (0 = none). Audio frames arrive at
+ * ~43Hz in bursts and the overlay only latches the newest one, so a beat
+ * flagged on a frame that lands between two rAFs used to be overwritten
+ * before anyone saw it. The helper's `beat` is tempo-locked (onsets snapped
+ * to the tempo grid, with soft predicted fills where one was missed), which
+ * is what keeps the motion regular; raw onsets are not used here.
  */
-let pendingOnsets = 0
+let pendingBeat = 0
 /**
  * Slow rolling peaks the band envelopes are normalised against, so a quiet
  * source still fills the visual range and a loud one does not pin at 1. They
@@ -80,6 +84,15 @@ interface Surge {
 }
 const snakeLurch: Surge = { pending: 0, moving: 0 }
 const waveKick: Surge = { pending: 0, moving: 0 }
+/** Snake glide speed, laps per second, eased so it coasts in and out rather than switching. */
+let snakeSpeedEnv = 0
+/**
+ * Seconds per lap of the Snake's baseline glide at 120 BPM. Slow on purpose:
+ * the beat surges have to dominate the glide or the snake reads as merely
+ * drifting. At 120 BPM the glide covers ~3% of the rim per beat and a beat
+ * adds ~5-6% in a third of a second - a visible kick through the glide.
+ */
+const SNAKE_LAP_S = 16
 
 function releaseSurge(s: Surge, dt: number, tauIn: number, tauOut: number): number {
   const admitted = s.pending * (1 - Math.exp(-dt / tauIn))
@@ -260,8 +273,8 @@ function render(now: number): void {
   lastFrameTime = now
   resize()
 
-  const onsets = pendingOnsets
-  pendingOnsets = 0
+  const beat = pendingBeat
+  pendingBeat = 0
 
   const rawBass = audio.bass + audio.sub * 0.6
   const peakDecay = Math.exp(-dt / PEAK_DECAY_S)
@@ -270,11 +283,12 @@ function render(now: number): void {
 
   bassEnv = envelope(bassEnv, clamp01(rawBass / bassPeak), 0.5, RELEASE)
   rmsEnv = envelope(rmsEnv, clamp01(audio.rms / rmsPeak), 0.4, RELEASE)
-  // A beat is an impulse that rises over ~60ms and decays over BEAT_TAIL_S.
-  // It must not reach its peak on the onset frame itself, or every beat is a step.
-  const beatTarget = onsets > 0 ? clamp01(0.7 + bassEnv * 0.3) : 0
+  // A beat is an impulse that rises over ~90ms and decays over BEAT_TAIL_S,
+  // sized by how hard it hit so a soft predicted fill nudges and a kick lands.
+  // It must not reach its peak on the beat frame itself, or every beat is a step.
+  const beatTarget = beat > 0 ? clamp01(0.55 + 0.45 * beat) : 0
   beatPeak = Math.max(beatPeak * Math.exp(-dt / BEAT_TAIL_S), beatTarget)
-  beatEnv = ease(beatEnv, beatPeak, dt, 0.06, 0.25)
+  beatEnv = ease(beatEnv, beatPeak, dt, 0.09, 0.32)
   // A slow reading of the bass for motion drivers: the raw envelope tracks
   // the bursty ~43Hz frames and is far too twitchy to scale geometry with.
   slowBass = ease(slowBass, bassEnv, dt, 0.2, 0.45)
@@ -282,23 +296,27 @@ function render(now: number): void {
   // Tempo ratio against 120 BPM, used to pace every motion so fast tracks
   // visibly move faster than slow ones. Unknown tempo reads as 120.
   const tempo = audio.bpm > 0 ? Math.min(2, Math.max(0.5, audio.bpm / 120)) : 1
+  // The Speed setting scales every displacement below - free-run, glide and
+  // beat surges alike - and nothing else, so beats still land where they land.
+  const pace = speedFactor(settings.speed)
 
   let intensity = 1
   let waveAmp = 0
 
   /**
    * Shared by both music modes. The wave rolls on its own (one cycle
-   * every ~5s, so it never looks frozen) and each beat adds a surge of a
-   * tenth of a cycle that ramps in over ~180ms and tails off over ~600ms - a
-   * push that flows through, not a shove. Faster or larger reads as a stutter. The
-   * height follows its own slow envelope rather than the raw bass, so a beat
-   * swells the crests instead of snapping them.
+   * every ~5.5s, so it never looks frozen but the beats do the pushing) and each beat adds a surge of up
+   * to a tenth of a cycle that ramps in over ~220ms and tails off over
+   * ~700ms - a push that flows through, not a shove. Faster or larger reads
+   * as a stutter. The height rests at 0.65 (troughs at the bare core, see
+   * swell() in rim.frag) and follows its own slow envelope rather than the
+   * raw bass, so a beat swells the crests instead of snapping them.
    */
   const driveWave = (): void => {
-    if (onsets > 0) waveKick.pending += 0.1
-    const kick = releaseSurge(waveKick, dt, 0.18, 0.6)
-    wavePhase = wrap(wavePhase + dt * (0.14 + 0.08 * tempo) + kick)
-    waveAmpEnv = ease(waveAmpEnv, 0.6 + 0.4 * Math.max(beatEnv, slowBass), dt, 0.12, 0.5)
+    if (beat > 0) waveKick.pending += 0.1 * beat
+    const kick = releaseSurge(waveKick, dt, 0.22, 0.7)
+    wavePhase = wrap(wavePhase + (dt * (0.12 + 0.06 * tempo) + kick) * pace)
+    waveAmpEnv = ease(waveAmpEnv, 0.65 + 0.35 * Math.max(beatEnv, slowBass), dt, 0.14, 0.55)
     waveAmp = waveAmpEnv
   }
 
@@ -309,24 +327,27 @@ function render(now: number): void {
     case 'music': {
       // Brightness never drops below 0.7 so the rim never "goes out" between beats.
       driveWave()
-      driftPhase = wrap(driftPhase + (dt * tempo) / 120)
+      driftPhase = wrap(driftPhase + (dt * tempo * pace) / 120)
       intensity = 0.7 + 0.3 * Math.max(beatEnv, slowBass * 0.8)
       break
     }
 
     case 'snake': {
-      // Entirely beat-driven: no idle glide at all. Every onset is a push that
-      // ramps over ~30ms and settles in ~120ms - a step, not a slide - sized by
-      // the bass so kicks move it further than hi-hats. Between beats it holds
-      // still, which is what makes the motion read as being on the beat. After
-      // 1.5s of silence it parks where it is and stays lit.
+      // Glides at a tempo-scaled pace (one lap every ~16s at 120 BPM) and
+      // every beat adds a surge on top, sized by how hard it hit, ramping
+      // over ~50ms and settling over ~220ms so a beat is a push through the
+      // glide rather than a step. It used to hold still between beats and
+      // lurch on each onset, which read as stop-and-go. After 1.5s of
+      // silence the glide coasts to a stop over ~1.5s and the snake stays
+      // lit where it is; it eases back up when sound returns.
       if (rmsEnv >= 0.02) quietSince = 0
       else if (!quietSince) quietSince = now
       const parked = quietSince > 0 && now - quietSince > 1500
 
-      if (!parked && onsets > 0) snakeLurch.pending += 0.025 + 0.035 * bassEnv
-      const step = releaseSurge(snakeLurch, dt, 0.03, 0.11)
-      snakeHead = wrap(snakeHead + step)
+      snakeSpeedEnv = ease(snakeSpeedEnv, parked ? 0 : tempo / SNAKE_LAP_S, dt, 0.6, 1.5)
+      if (!parked && beat > 0) snakeLurch.pending += 0.03 + 0.03 * beat
+      const step = releaseSurge(snakeLurch, dt, 0.05, 0.22)
+      snakeHead = wrap(snakeHead + (dt * snakeSpeedEnv + step) * pace)
       driveWave()
       intensity = 0.8 + 0.2 * beatEnv
       break
@@ -360,7 +381,7 @@ function render(now: number): void {
   gl!.uniform1f(u.offset, driftPhase)
   // Brightness eases toward its target so a beat glows up over a few frames
   // instead of popping on the exact frame the onset lands.
-  intensityEnv = ease(intensityEnv, intensity, dt, 0.08, 0.35)
+  intensityEnv = ease(intensityEnv, intensity, dt, 0.1, 0.4)
   gl!.uniform1f(u.intensity, intensityEnv)
   gl!.uniform1i(u.mode, MODE[settings.animation] ?? MODE.static)
   gl!.uniform1f(u.wavePhase, wavePhase)
@@ -423,8 +444,8 @@ api.onPalette((next) => {
 
 api.onAudio((frame) => {
   audio = frame
-  if (frame.onset) pendingOnsets += 1
-  if (frame.rms > 0.001 || frame.onset) wake()
+  if (frame.beat) pendingBeat = Math.max(pendingBeat, frame.beatStrength)
+  if (frame.rms > 0.001 || frame.beat) wake()
 })
 
 window.addEventListener('resize', () => {

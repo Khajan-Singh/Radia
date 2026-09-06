@@ -18,6 +18,9 @@ const started = Date.now()
 
 let frames = 0
 let onsets = 0
+let beats = 0
+let predicted = 0
+let confidence = 0
 let peakBass = 0
 let peakRms = 0
 let bpm = 0
@@ -36,6 +39,11 @@ createInterface({ input: child.stdout }).on('line', (line) => {
   if (msg.t === 'audio') {
     frames++
     if (msg.frame.onset) onsets++
+    if (msg.frame.beat) {
+      beats++
+      if (!msg.frame.onset) predicted++
+    }
+    confidence = msg.frame.beatConfidence ?? 0
     peakBass = Math.max(peakBass, msg.frame.bass)
     peakRms = Math.max(peakRms, msg.frame.rms)
     if (msg.frame.bpm) bpm = msg.frame.bpm
@@ -57,6 +65,8 @@ setTimeout(() => {
   console.log(`\nover ${elapsed.toFixed(1)}s:`)
   console.log(`  audio frames : ${frames}  (${(frames / elapsed).toFixed(1)}/s)`)
   console.log(`  onsets       : ${onsets}  (${(onsets / elapsed * 60).toFixed(0)}/min)`)
+  console.log(`  beats        : ${beats}  (${(beats / elapsed * 60).toFixed(0)}/min, ${predicted} predicted)`)
+  console.log(`  beat lock    : ${confidence.toFixed(2)}`)
   console.log(`  peak bass    : ${peakBass.toFixed(3)}`)
   console.log(`  peak rms     : ${peakRms.toFixed(3)}`)
   console.log(`  bpm estimate : ${bpm || 'none'}`)

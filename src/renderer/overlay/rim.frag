@@ -117,23 +117,30 @@ vec3 gradient(float t) {
 //
 // Rates 1 and 2 over 5 and 8 cycles travel at slightly different speeds, so
 // the pattern slowly morphs instead of sliding rigidly. That is deliberate.
+// Fewer cycles were tried (3 and 5): each crest then spanned more than a
+// screen width and read as a slow bulge, not a wave.
 float wave(float along) {
   float w = 0.65 * sin(TAU * (5.0 * along - uWavePhase))
           + 0.35 * sin(TAU * (8.0 * along + 0.37 - 2.0 * uWavePhase));
   return 0.5 + 0.5 * w;
 }
 
-// Thickness multiplier from the wave: up to 4.3x the base at full amplitude.
+// Thickness multiplier from the wave: the troughs sit at the bare core (1.0)
+// and the crests reach 1 + 3.4 * uWaveAmp - 3.2x at the resting amplitude of
+// 0.65, 4.3x at full. The cube flattens the troughs and narrows the crests:
+// only ~40% of the rim is above 1.5x at rest (a plain sine put 66% there and
+// the crests blended into the base), so the base reads as a rim and the
+// crests read as distinct waves riding on it.
 // `reach` in main() must cover the same maximum or crests get clipped by the
 // early-out.
 float swell(float along) {
-  return 1.0 + uWaveAmp * (0.5 + 2.8 * wave(along));
+  return 1.0 + uWaveAmp * 3.4 * pow(wave(along), 3.0);
 }
 
-// What the music modes average at their resting amplitude (0.6): the mean of
-// swell() over a cycle. Static draws at this so the Thickness slider reads the
-// same in every mode - a bare 1.0 made Static look half as thick as Sync.
-#define STATIC_SWELL 2.14
+// What the music modes average at their resting amplitude (0.65): the mean
+// of swell() over a cycle. Static draws at this so the Thickness slider reads
+// the same in every mode - a bare 1.0 made Static look half as thick as Sync.
+#define STATIC_SWELL 1.50
 
 void main() {
   vec2 rim = rimCoord(gl_FragCoord.xy, uRes);
@@ -142,7 +149,7 @@ void main() {
 
   // Bail early on the vast interior region that contributes nothing. The
   // profile can only swell the core, never push the reach past this.
-  float reach = uThickness * max(STATIC_SWELL, 1.0 + 3.3 * uWaveAmp) + uSpill;
+  float reach = uThickness * max(STATIC_SWELL, 1.0 + 3.4 * uWaveAmp) + uSpill;
   if (depth > reach) {
     fragColor = vec4(0.0);
     return;
@@ -164,8 +171,13 @@ void main() {
     }
     float feather = max(uSnakeFeather * uSnakeLength, 1e-4);
     cover = smoothstep(0.0, feather, u) * smoothstep(0.0, feather, uSnakeLength - u);
-    // The body thins to nothing at both ends and rides the same wave as Sync.
-    profile = cover * swell(along);
+    // The body thins to nothing at both ends. Its ripple is in body
+    // coordinates (distance behind the head), not screen coordinates, so the
+    // waves travel with the snake and flow head -> tail as it swims, rather
+    // than the snake sliding over a ripple pinned to the screen. `u` is
+    // continuous over the body and both ends are feathered to zero, so its
+    // wrap at the head never shows.
+    profile = cover * swell(u);
     // Palette runs head -> tail along the body, so the colours travel with it.
     color = gradient(u / uSnakeLength);
   } else {
